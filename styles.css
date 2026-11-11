@@ -1018,14 +1018,14 @@ button {
 
 .handoff-card__header h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 680;
 }
 
 .handoff-card__header p {
   margin: 4px 0 0;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .handoff-count {
@@ -1037,7 +1037,7 @@ button {
   border-radius: 9px;
   background: #eef2ff;
   color: #3e5fca;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1048,7 +1048,7 @@ button {
 }
 
 .handoff-flow-card {
-  padding: 12px;
+  padding: 14px;
   border: 1px solid #e9edf4;
   border-radius: 11px;
   background: linear-gradient(120deg, #fff 30%, #f8faff 100%);
@@ -1079,7 +1079,7 @@ button {
 
 .handoff-flow-card__heading strong {
   overflow: hidden;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 680;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1087,7 +1087,7 @@ button {
 
 .handoff-flow-card__heading > div > span {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .handoff-current {
@@ -1096,7 +1096,7 @@ button {
   border-radius: 999px;
   background: #e8f6ef;
   color: #237b55;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   animation: handoff-owner-pulse 2.8s ease-in-out infinite;
 }
@@ -1137,7 +1137,7 @@ button {
 
 .handoff-transfer__person small {
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.09em;
 }
@@ -1145,7 +1145,7 @@ button {
 .handoff-transfer__person strong {
   overflow: hidden;
   color: #29364b;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1204,7 +1204,7 @@ button {
 .handoff-transfer__time {
   grid-column: 1 / -1;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
   padding-left: 20px;
 }
 
@@ -1212,7 +1212,7 @@ button {
   margin: 0;
   padding: 13px 8px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -1235,7 +1235,7 @@ button {
 
 .assigned-lead-card strong {
   overflow: hidden;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1243,20 +1243,20 @@ button {
 
 .assigned-lead-card > div > span {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .assigned-lead-card .lead-status-badge {
   min-height: 21px;
   padding: 0 7px;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .handoff-empty {
   margin: 0;
   padding: 17px 8px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 13px;
   text-align: center;
 }
 
