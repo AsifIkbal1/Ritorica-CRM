@@ -715,7 +715,11 @@ async function writeRequestAuditLog(context, response) {
 async function findAccount(email, role) {
   if (isAdminRole(role)) {
     const account = await loadAccount();
-    return account?.email === email ? account : null;
+    if (account?.email === email) return account;
+    const employees = await loadEmployees();
+    return employees.find(
+      (employee) => employee.email === email && isAdminRole(employee.role),
+    ) || null;
   }
   const employees = await loadEmployees();
   return employees.find((employee) => employee.email === email) || null;
@@ -732,7 +736,7 @@ function publicEmployee(employee, teams) {
     name: employee.name,
     email: employee.email,
     designation: employee.designation,
-    role: "Employee",
+    role: isAdminRole(employee.role) ? "Super Admin" : "Employee",
     teamIds: [...membershipIds],
     teams: teams.filter((team) => membershipIds.has(team.id)).map((team) => team.name),
   };
@@ -1189,7 +1193,9 @@ async function handleLogin(request, response) {
   const employees = await loadEmployees();
   const employeeAccount = employees.find((employee) => employee.email === email);
   const account = adminAccount?.email === email ? adminAccount : employeeAccount;
-  const role = account === adminAccount && adminAccount ? "Admin" : "Employee";
+  const role = account === adminAccount && adminAccount
+    ? "Admin"
+    : isAdminRole(employeeAccount?.role) ? "Admin" : "Employee";
   const auditContext = auditStorage.getStore();
   if (auditContext) {
     auditContext.actorEmail = email;
@@ -1302,8 +1308,9 @@ async function handleProfileUpdate(request, response, session) {
   }
 
   account.name = name;
-  const isAdminAccount = isAdminRole(session.role);
-  account.designation = designation || (isAdminAccount ? "Super Admin" : "Employee");
+  const primaryAdmin = await loadAccount();
+  const isAdminAccount = primaryAdmin?.email === session.email;
+  account.designation = designation || (isAdmin(session) ? "Super Admin" : "Employee");
   account.photo = photo;
   const accountFile = isAdminAccount ? USERS_FILE : EMPLOYEES_FILE;
   if (isAdminAccount) {
@@ -1336,6 +1343,9 @@ async function handleEmployees(request, response, session, employeeId = "") {
     const employeeIndex = employees.findIndex((employee) => employee.id === employeeId);
     if (employeeIndex < 0) return sendJson(response, 404, { error: "Employee not found." });
     const deletedEmployee = employees[employeeIndex];
+    if (isAdminRole(deletedEmployee.role)) {
+      return sendJson(response, 403, { error: "Super Admin accounts cannot be deleted from Employees & Teams." });
+    }
     const undoEntry = await saveUndoEntry(session, "employee", deletedEmployee.name, deletedEmployee);
     employees.splice(employeeIndex, 1);
     await commitDeletion(undoEntry, () => writeJsonFile(EMPLOYEES_FILE, employees));
@@ -1383,6 +1393,7 @@ async function handleEmployees(request, response, session, employeeId = "") {
   let shouldInvalidatePasswordSessions = false;
   if (request.method === "PUT") {
     const previousEmail = existingEmployee.email;
+    const employeeSessionRole = isAdminRole(existingEmployee.role) ? "Admin" : "Employee";
     employee = {
       ...existingEmployee,
       name,
@@ -1397,7 +1408,7 @@ async function handleEmployees(request, response, session, employeeId = "") {
     employees[employees.indexOf(existingEmployee)] = employee;
     if (previousEmail !== email) {
       for (const activeSession of sessions.values()) {
-        if (activeSession.email === previousEmail && activeSession.role === "Employee") {
+        if (activeSession.email === previousEmail && activeSession.role === employeeSessionRole) {
           activeSession.email = email;
         }
       }
@@ -1417,14 +1428,15 @@ async function handleEmployees(request, response, session, employeeId = "") {
     employees.push(employee);
   }
   await writeJsonFile(EMPLOYEES_FILE, employees);
+  const employeeSessionRole = isAdminRole(employee.role) ? "Admin" : "Employee";
   for (const activeSession of sessions.values()) {
-    if (activeSession.email === employee.email && activeSession.role === "Employee") {
+    if (activeSession.email === employee.email && activeSession.role === employeeSessionRole) {
       activeSession.name = employee.name;
     }
   }
   if (shouldInvalidatePasswordSessions) {
     for (const [token, activeSession] of sessions) {
-      if (activeSession.email === existingEmployee.email && activeSession.role === "Employee") {
+      if (activeSession.email === existingEmployee.email && activeSession.role === employeeSessionRole) {
         sessions.delete(token);
       }
     }
@@ -1448,8 +1460,9 @@ async function handleEmployeePasswordReset(request, response, session, employeeI
 
   Object.assign(employee, await hashPassword(password));
   await writeJsonFile(EMPLOYEES_FILE, employees);
+  const employeeSessionRole = isAdminRole(employee.role) ? "Admin" : "Employee";
   for (const [token, activeSession] of sessions) {
-    if (activeSession.email === employee.email && activeSession.role === "Employee") {
+    if (activeSession.email === employee.email && activeSession.role === employeeSessionRole) {
       sessions.delete(token);
     }
   }

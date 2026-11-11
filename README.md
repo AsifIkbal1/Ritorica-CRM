@@ -28,8 +28,10 @@ and workspace notifications. The app stores this account with the internal
 `Admin` role; the Super Admin designation shown in the profile does not limit
 its access.
 
-Only one admin account is supported. To use a different email when creating the
-account, replace `admin@ritorica.test` in the setup command. The service binds to
+The `create-admin` command creates one primary admin account. An employee
+account marked with the `Admin` role also receives Super Admin access while
+keeping its employee record and password. To use a different primary admin
+email, replace `admin@ritorica.test` in the setup command. The service binds to
 localhost by default. The server refuses non-loopback `HOST` values unless both
 `NODE_ENV=production` and `ALLOW_REMOTE_BIND=true` are set. Only enable remote
 binding when the service is on a private interface behind a TLS-terminating

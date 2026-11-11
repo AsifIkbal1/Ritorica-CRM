@@ -1981,7 +1981,8 @@ function renderEmployeeList(employees) {
     remove.dataset.action = "delete-employee";
     remove.dataset.id = employee.id;
     remove.textContent = "Delete";
-    actions.append(edit, resetPassword, remove);
+    actions.append(edit, resetPassword);
+    if (employee.role !== "Super Admin") actions.append(remove);
     row.append(actions);
     employeeList.append(row);
   }
