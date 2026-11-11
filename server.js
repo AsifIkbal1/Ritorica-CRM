@@ -56,6 +56,7 @@ const staticFiles = new Map([
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
   ["/assets/ritorica-logo.png", ["assets/ritorica-logo.png", "image/png"]],
+  ["/assets/ritorica-logo-login.png", ["assets/ritorica-logo-login.png", "image/png"]],
 ]);
 
 async function hashPassword(password, salt = crypto.randomBytes(16)) {
