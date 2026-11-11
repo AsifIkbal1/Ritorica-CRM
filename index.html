@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f8ff">
+    <title>Sign in | Ritorica CRM</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="login-page" id="login-view">
+      <header class="brand">
+        <img class="brand__logo" src="assets/ritorica-logo.png" alt="Ritorica">
+      </header>
+
+      <section class="login-card" id="login-card" aria-label="Sign in to Ritorica CRM">
+        <form id="login-form">
+          <div class="field">
+            <label for="email">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="username"
+              placeholder="you@company.com"
+              required
+            >
+          </div>
+
+          <div class="field">
+            <div class="field__heading">
+              <label for="password">Password</label>
+              <button class="text-button" id="forgot-password" type="button">Forgot password?</button>
+            </div>
+            <div class="password-input">
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Enter your password"
+                required
+              >
+              <button
+                class="password-toggle"
+                id="password-toggle"
+                type="button"
+                aria-label="Show password"
+                aria-pressed="false"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"></path>
+                  <circle cx="12" cy="12" r="2.6"></circle>
+                  <path class="eye-slash" d="m4 4 16 16"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button class="submit-button" type="submit">Sign in</button>
+          <p class="form-message" id="form-message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <p class="workspace-note">Forgot your password? Contact the Super Admin to reset it.</p>
+    </main>
+
+    <div class="app-shell" id="app-shell" hidden>
+      <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+        <a class="sidebar-brand" href="#" aria-label="Ritorica CRM dashboard" data-page="dashboard">
+          <img class="sidebar-brand__logo" src="assets/ritorica-logo.png" alt="Ritorica">
+        </a>
+
+        <nav class="sidebar-nav">
+          <section class="nav-group" aria-labelledby="nav-overview">
+            <h2 class="nav-group__heading" id="nav-overview">Overview</h2>
+            <button class="nav-link is-active" type="button" data-page="dashboard" aria-current="page">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+              </svg>
+              <span>Dashboard</span>
+            </button>
+          </section>
+
+          <section class="nav-group" aria-labelledby="nav-customer-relationship">
+            <h2 class="nav-group__heading" id="nav-customer-relationship">Customer relationship</h2>
+            <button class="nav-link" type="button" data-page="leads">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="9" cy="8" r="3.5"></circle>
+                <path d="M3 20v-1.5a6 6 0 0 1 12 0V20M19 8v6m-3-3h6"></path>
+              </svg>
+              <span>Leads</span>
+            </button>
+            <button class="nav-link" type="button" data-page="clients">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="7" width="16" height="14" rx="1.5"></rect>
+                <path d="M9 21v-4h6v4M8 11h2m4 0h2m-8 3h2m4 0h2M8 3h8v4H8z"></path>
+              </svg>
+              <span>Clients</span>
+            </button>
+            <button class="nav-link" type="button" data-page="sales">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m3 12 5-5h4l2 2h4l3 3-8 8-5-5-2 2-3-3z"></path>
+                <path d="m8 7 3-3h5l5 5m-11 5 4 4m-1-6 4 4"></path>
+              </svg>
+              <span>Sales &amp; Deals</span>
+            </button>
+          </section>
+
+          <section class="nav-group" aria-labelledby="nav-operations" data-admin-only>
+            <h2 class="nav-group__heading" id="nav-operations">Operations</h2>
+            <button class="nav-link" type="button" data-page="employees">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="9" cy="8" r="3"></circle>
+                <path d="M3 20v-1a6 6 0 0 1 12 0v1m1-14a3 3 0 0 1 0 6m2 2a5 5 0 0 1 3 4v1"></path>
+              </svg>
+              <span>Employees &amp; Teams</span>
+            </button>
+          </section>
+
+          <section class="nav-group" aria-labelledby="nav-system" data-admin-only>
+            <h2 class="nav-group__heading" id="nav-system">System</h2>
+            <button class="nav-link" type="button" data-page="audit">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 3h13v18H7zM4 6H3v15h13v-1"></path>
+                <path d="M11 8h5m-5 4h5m-5 4h5M4 3h4v5H4z"></path>
+              </svg>
+              <span>Audit Logs</span>
+            </button>
+          </section>
+        </nav>
+
+        <div class="sidebar-account">
+          <div class="account-row">
+            <span class="account-avatar" id="account-avatar" aria-hidden="true">
+              <span id="account-initials">A</span>
+              <img id="account-photo" alt="">
+            </span>
+            <span class="account-identity">
+              <strong id="account-name">Admin</strong>
+              <span id="account-designation">Super Admin</span>
+            </span>
+            <button class="sign-out-button" id="sign-out" type="button" aria-label="Sign out" title="Sign out">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10 17l5-5-5-5m5 5H3m9-9h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7"></path>
+              </svg>
+            </button>
+          </div>
+          <button class="nav-link profile-link" type="button" data-page="profile">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4"></circle>
+              <path d="M4 21v-2a8 8 0 0 1 16 0v2"></path>
+            </svg>
+            <span>My profile</span>
+          </button>
+        </div>
+      </aside>
+
+      <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Close navigation" hidden></button>
+
+      <main class="workspace">
+        <header class="workspace-topbar">
+          <button
+            class="menu-toggle"
+            id="menu-toggle"
+            type="button"
+            aria-label="Open navigation"
+            aria-expanded="false"
+            aria-controls="sidebar"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+          <span class="workspace-topbar__label">Internal workspace</span>
+          <div class="undo-notice" id="undo-notice" role="status" aria-live="polite" hidden>
+            <span class="undo-notice__message" id="undo-notice-message"></span>
+            <button class="undo-notice__action" id="undo-notice-action" type="button">Undo</button>
+            <button class="undo-notice__close" id="undo-notice-close" type="button" aria-label="Dismiss undo message">×</button>
+          </div>
+          <div class="notification-menu">
+            <button
+              class="notification-button"
+              id="notification-button"
+              type="button"
+              aria-label="Notifications"
+              aria-expanded="false"
+              aria-controls="notification-panel"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12h4"></path>
+              </svg>
+              <span class="notification-count" id="notification-count" hidden>0</span>
+            </button>
+            <section class="notification-panel" id="notification-panel" aria-label="Notifications" hidden>
+              <header class="notification-panel__header">
+                <strong>Notifications</strong>
+                <span id="notification-summary">You're all caught up</span>
+              </header>
+              <ul class="notification-list" id="notification-list"></ul>
+            </section>
+          </div>
+        </header>
+
+        <section class="workspace-content" aria-live="polite">
+          <p class="workspace-eyebrow">Ritorica CRM</p>
+          <h1 id="page-title">Dashboard</h1>
+          <p class="workspace-description" id="page-description">Your workspace at a glance.</p>
+          <div class="dashboard-content" id="dashboard-content">
+            <section class="dashboard-overview" aria-label="CRM overview">
+              <div class="dashboard-stats">
+                <article class="dashboard-stat">
+                  <span class="dashboard-stat__label">Total Leads</span>
+                  <strong id="dashboard-lead-count">0</strong>
+                  <small id="dashboard-lead-note">0 new this month</small>
+                  <span class="dashboard-stat__icon" aria-hidden="true">↗</span>
+                </article>
+                <article class="dashboard-stat">
+                  <span class="dashboard-stat__label">Total Clients</span>
+                  <strong id="dashboard-client-count">0</strong>
+                  <small>Active business clients</small>
+                  <span class="dashboard-stat__icon" aria-hidden="true">▣</span>
+                </article>
+                <article class="dashboard-stat">
+                  <span class="dashboard-stat__label">Open Deals</span>
+                  <strong id="dashboard-open-value">BDT 0</strong>
+                  <small id="dashboard-open-count">0 deals</small>
+                  <span class="dashboard-stat__icon" aria-hidden="true">◇</span>
+                </article>
+                <article class="dashboard-stat">
+                  <span class="dashboard-stat__label">Won this month</span>
+                  <strong id="dashboard-won-value">BDT 0</strong>
+                  <small id="dashboard-won-count">0 deals closed</small>
+                  <span class="dashboard-stat__icon" aria-hidden="true">↗</span>
+                </article>
+              </div>
+              <div class="dashboard-recent-grid">
+                <section class="dashboard-recent-card" aria-labelledby="dashboard-recent-leads-title">
+                  <h2 id="dashboard-recent-leads-title">Recent Leads</h2>
+                  <div class="dashboard-recent-list" id="dashboard-recent-leads"></div>
+                  <p class="dashboard-recent-empty" id="dashboard-recent-leads-empty">No leads yet.</p>
+                </section>
+                <section class="dashboard-recent-card" aria-labelledby="dashboard-recent-deals-title">
+                  <h2 id="dashboard-recent-deals-title">Recent Deals</h2>
+                  <div class="dashboard-recent-list" id="dashboard-recent-deals"></div>
+                  <p class="dashboard-recent-empty" id="dashboard-recent-deals-empty">No deals yet.</p>
+                </section>
+                <section class="dashboard-recent-card" aria-labelledby="dashboard-recent-clients-title">
+                  <h2 id="dashboard-recent-clients-title">Recent Clients</h2>
+                  <div class="dashboard-recent-list" id="dashboard-recent-clients"></div>
+                  <p class="dashboard-recent-empty" id="dashboard-recent-clients-empty">No clients yet.</p>
+                </section>
+              </div>
+              <p class="management-message" id="dashboard-overview-message" role="status" aria-live="polite"></p>
+            </section>
+            <section class="handoff-dashboard" id="handoff-dashboard" aria-label="Lead handoffs">
+              <div class="handoff-dashboard__heading">
+                <div>
+                  <p class="workspace-eyebrow">Team activity</p>
+                  <h2>Lead handoffs</h2>
+                  <p id="handoff-description">Follow how your leads move through the team.</p>
+                </div>
+                <span class="handoff-dashboard__spark" aria-hidden="true">✦</span>
+              </div>
+              <div class="handoff-grid">
+                <section class="handoff-card handoff-card--flows">
+                  <header class="handoff-card__header">
+                    <div><h3>Assignment journey</h3><p>Animated transfer history · Visible only to you and Super Admin</p></div>
+                    <span id="handoff-flow-count" class="handoff-count">0</span>
+                  </header>
+                  <div class="handoff-flow-list" id="handoff-flow-list"></div>
+                  <p class="handoff-empty" id="handoff-flow-empty">Your created leads will appear here.</p>
+                </section>
+                <section class="handoff-card">
+                  <header class="handoff-card__header">
+                    <div><h3>Assigned to me</h3><p>Leads currently in your queue</p></div>
+                    <span id="assigned-lead-count" class="handoff-count">0</span>
+                  </header>
+                  <div class="assigned-lead-list" id="assigned-lead-list"></div>
+                  <p class="handoff-empty" id="assigned-lead-empty">No leads are assigned to you.</p>
+                </section>
+              </div>
+              <p class="management-message" id="handoff-message" role="status" aria-live="polite"></p>
+            </section>
+          </div>
+          <div class="section-placeholder" id="section-placeholder" hidden>
+            <span class="section-placeholder__icon" id="section-icon" aria-hidden="true"></span>
+            <h2 id="section-heading"></h2>
+            <p>This section is ready for your CRM workflow.</p>
+          </div>
+          <section class="clients-dashboard" id="clients-dashboard" hidden aria-label="Client directory">
+            <div class="clients-toolbar">
+              <p class="clients-count" id="clients-count">0 clients</p>
+              <button class="management-primary client-new-button" id="new-client" type="button">
+                <span aria-hidden="true">+</span> New client
+              </button>
+            </div>
+            <div class="management-panel clients-panel">
+              <div class="client-table-scroll">
+                <table class="management-table client-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Company</th>
+                      <th scope="col">Industry</th>
+                      <th scope="col">Type</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Account manager</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="client-list"></tbody>
+                </table>
+                <p class="empty-state" id="client-empty">No clients yet. Add a client to get started.</p>
+              </div>
+            </div>
+            <p class="management-message" id="clients-message" role="status" aria-live="polite"></p>
+          </section>
+          <section class="leads-dashboard" id="leads-dashboard" hidden aria-label="Lead directory">
+            <div class="leads-toolbar">
+              <label class="lead-search">
+                <span aria-hidden="true">⌕</span>
+                <span class="visually-hidden">Search leads</span>
+                <input id="lead-search" type="search" placeholder="Search company, contact or record number">
+              </label>
+              <label class="lead-toolbar-select">
+                <span class="visually-hidden">Filter leads by status</span>
+                <select id="lead-status-filter">
+                  <option value="All">All statuses</option>
+                  <option value="New">New</option>
+                  <option value="Qualified">Qualified</option>
+                  <option value="Proposal">Proposal</option>
+                  <option value="Negotiation">Negotiation</option>
+                  <option value="Contract">Contract</option>
+                  <option value="Won">Won</option>
+                  <option value="Lost">Lost</option>
+                  <option value="Contacted">Contacted</option>
+                  <option value="Converted">Converted</option>
+                </select>
+              </label>
+              <label class="lead-toolbar-select lead-team-filter">
+                <span class="visually-hidden">Filter leads by team</span>
+                <select id="lead-team-filter">
+                  <option value="All">All teams</option>
+                </select>
+              </label>
+              <button class="lead-export-button" id="lead-export" type="button">Export CSV</button>
+              <button class="management-primary lead-new-button" id="new-lead" type="button">
+                <span aria-hidden="true">+</span> New lead
+              </button>
+            </div>
+            <div class="management-panel leads-panel">
+              <div class="lead-table-scroll">
+                <table class="management-table lead-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Company</th>
+                      <th scope="col">Record no.</th>
+                      <th scope="col">Contact</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Priority</th>
+                      <th scope="col">Assigned</th>
+                      <th scope="col">Value</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lead-list"></tbody>
+                </table>
+                <p class="empty-state" id="lead-empty">No leads found.</p>
+              </div>
+            </div>
+            <p class="management-message" id="leads-message" role="status" aria-live="polite"></p>
+          </section>
+          <section class="sales-dashboard" id="sales-dashboard" hidden aria-label="Sales and deals dashboard">
+            <div class="deal-summary" aria-label="Deal totals">
+              <article class="deal-summary-card">
+                <h2>Open</h2>
+                <strong id="open-total">BDT 0</strong>
+                <p id="open-count">0 deals</p>
+              </article>
+              <article class="deal-summary-card">
+                <h2>Won</h2>
+                <strong id="won-total">BDT 0</strong>
+                <p id="won-count">0 deals</p>
+              </article>
+              <article class="deal-summary-card">
+                <h2>Lost</h2>
+                <strong id="lost-total">BDT 0</strong>
+                <p id="lost-count">0 deals</p>
+              </article>
+            </div>
+            <div class="deal-toolbar">
+              <label class="deal-filter">
+                <span class="visually-hidden">Filter deals by status</span>
+                <select id="deal-status-filter">
+                  <option value="All">All statuses</option>
+                  <option value="Open">Open</option>
+                  <option value="Won">Won</option>
+                  <option value="Lost">Lost</option>
+                </select>
+              </label>
+              <button class="management-primary deal-new-button" id="new-deal" type="button">
+                <span aria-hidden="true">+</span> New deal
+              </button>
+            </div>
+            <div class="management-panel deals-panel">
+              <div class="deal-table-scroll">
+                <table class="management-table deal-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Deal</th>
+                      <th scope="col">Client</th>
+                      <th scope="col">Value</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Close date</th>
+                      <th scope="col">Assigned</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="deal-list"></tbody>
+                </table>
+                <p class="empty-state" id="deal-empty">No deals yet. Create a deal to get started.</p>
+              </div>
+            </div>
+            <p class="management-message" id="deals-message" role="status" aria-live="polite"></p>
+          </section>
+          <section class="employee-management" id="employee-management" hidden aria-label="Employee and team management">
+            <div class="management-panel">
+              <div class="management-panel__heading">
+                <div>
+                  <h2>Employees</h2>
+                  <p>Manage employee accounts and team memberships.</p>
+                </div>
+                <button class="management-primary" id="new-employee" type="button">+ New employee</button>
+              </div>
+              <div class="table-scroll">
+                <table class="management-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Employee</th>
+                      <th scope="col">Designation</th>
+                      <th scope="col">Teams</th>
+                      <th scope="col">Role</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="employee-list"></tbody>
+                </table>
+                <p class="empty-state" id="employee-empty">No employees yet. Create an employee account to get started.</p>
+              </div>
+            </div>
+
+            <div class="management-panel teams-panel">
+              <div class="management-panel__heading">
+                <div>
+                  <h2>Teams</h2>
+                  <p>Organize employees into teams.</p>
+                </div>
+                <button class="management-secondary" id="new-team" type="button">+ Create new team</button>
+              </div>
+              <div class="team-list" id="team-list"></div>
+            </div>
+            <p class="management-message" id="management-message" role="status" aria-live="polite"></p>
+          </section>
+          <section class="audit-dashboard" id="audit-dashboard" hidden aria-label="Audit logs">
+            <div class="management-panel">
+              <div class="management-panel__heading">
+                <div>
+                  <h2>Workspace activity</h2>
+                  <p>Every recorded API request and tracked workspace interaction, newest first.</p>
+                </div>
+                <button class="management-primary" id="audit-refresh" type="button">Refresh logs</button>
+              </div>
+              <div class="audit-toolbar">
+                <label class="audit-search">
+                  <span class="visually-hidden">Search audit logs</span>
+                  <input id="audit-search" type="search" placeholder="Search user, company, action or details">
+                </label>
+                <label>
+                  <span class="visually-hidden">Filter audit logs by module</span>
+                  <select id="audit-module-filter">
+                    <option value="All">All modules</option>
+                    <option>Authentication</option>
+                    <option>Profile</option>
+                    <option>Employees</option>
+                    <option>Teams</option>
+                    <option>Deals</option>
+                    <option>Clients</option>
+                    <option>Leads</option>
+                    <option>Notifications</option>
+                    <option>Dashboard</option>
+                    <option>Audit Logs</option>
+                    <option>System</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="visually-hidden">Filter audit logs by status</span>
+                  <select id="audit-status-filter">
+                    <option value="All">All statuses</option>
+                    <option>Success</option>
+                    <option>Failed</option>
+                    <option>Blocked</option>
+                  </select>
+                </label>
+                <span class="audit-count" id="audit-count" aria-live="polite">Loading…</span>
+              </div>
+              <p class="management-message audit-message" id="audit-message" role="status" aria-live="polite"></p>
+              <div class="audit-table-scroll">
+                <table class="management-table audit-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Log ID</th>
+                      <th scope="col">Date &amp; Time</th>
+                      <th scope="col">Company Name</th>
+                      <th scope="col">User Name</th>
+                      <th scope="col">User Role</th>
+                      <th scope="col">Action</th>
+                      <th scope="col">Module</th>
+                      <th scope="col">Previous Value</th>
+                      <th scope="col">New Value</th>
+                      <th scope="col">IP Address</th>
+                      <th scope="col">Device</th>
+                      <th scope="col">Location</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody id="audit-list"></tbody>
+                </table>
+                <p class="empty-state" id="audit-empty" hidden>No audit activity matches these filters.</p>
+              </div>
+              <div class="audit-pagination" aria-label="Audit log pages">
+                <button class="management-secondary" id="audit-previous" type="button" disabled>Previous</button>
+                <span id="audit-page-status" aria-live="polite">Page 1</span>
+                <button class="management-secondary" id="audit-next" type="button" disabled>Next</button>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="profile-dialog employee-dialog" id="employee-dialog" aria-labelledby="employee-dialog-title">
+      <form class="profile-form" id="employee-form">
+        <header class="profile-dialog__header">
+          <h2 id="employee-dialog-title">New employee</h2>
+          <button class="profile-close" id="employee-close" type="button" aria-label="Close dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </header>
+
+        <div class="profile-field">
+          <label for="employee-name">Full name</label>
+          <input id="employee-name" name="name" type="text" maxlength="80" autocomplete="name" required>
+        </div>
+        <div class="profile-field">
+          <label for="employee-email">Email</label>
+          <input id="employee-email" name="email" type="email" maxlength="254" autocomplete="email" required>
+        </div>
+        <div class="profile-field">
+          <label for="employee-password">Password</label>
+          <input id="employee-password" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password">
+          <small class="field-help" id="employee-password-help">At least 12 characters.</small>
+        </div>
+        <div class="profile-field">
+          <label for="employee-designation">Designation</label>
+          <input id="employee-designation" name="designation" type="text" maxlength="80">
+        </div>
+        <fieldset class="team-picker">
+          <legend>Team membership</legend>
+          <div class="team-picker__options" id="employee-team-options"></div>
+          <button class="create-team-link" id="create-team-from-employee" type="button">
+            <span aria-hidden="true">+</span> Create new team
+          </button>
+        </fieldset>
+
+        <p class="employee-access-note">New employee accounts receive the standard Employee access role.</p>
+        <p class="profile-message" id="employee-message" role="status" aria-live="polite"></p>
+        <footer class="profile-dialog__footer">
+          <button class="profile-save" id="employee-create" type="submit">Create</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="profile-dialog employee-dialog" id="employee-password-dialog" aria-labelledby="employee-password-title">
+      <form class="profile-form" id="employee-password-form">
+        <header class="profile-dialog__header">
+          <h2 id="employee-password-title">Reset employee password</h2>
+          <button class="profile-close" id="employee-password-close" type="button" aria-label="Close dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </header>
+        <p class="employee-password-target" id="employee-password-target"></p>
+        <div class="profile-field">
+          <label for="employee-new-password">New password</label>
+          <input id="employee-new-password" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required>
+        </div>
+        <div class="profile-field">
+          <label for="employee-confirm-password">Confirm new password</label>
+          <input id="employee-confirm-password" name="confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required>
+        </div>
+        <p class="field-help">Use at least 12 characters. Share the new password with the employee privately.</p>
+        <p class="profile-message" id="employee-password-message" role="status" aria-live="polite"></p>
+        <footer class="profile-dialog__footer">
+          <button class="profile-save" id="employee-password-save" type="submit">Reset password</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="profile-dialog deal-dialog" id="deal-dialog" aria-labelledby="deal-dialog-title">
+      <form class="profile-form" id="deal-form">
+        <header class="profile-dialog__header">
+          <h2 id="deal-dialog-title">New deal</h2>
+          <button class="profile-close" id="deal-close" type="button" aria-label="Close dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="profile-field">
+          <label for="deal-title-input">Deal name</label>
+          <input id="deal-title-input" name="title" type="text" maxlength="120" required>
+        </div>
+        <div class="profile-field">
+          <label for="deal-client">Client</label>
+          <input id="deal-client" name="client" type="text" maxlength="120" required>
+        </div>
+        <div class="deal-form-grid">
+          <div class="profile-field">
+            <label for="deal-value">Value (BDT)</label>
+            <input id="deal-value" name="value" type="number" min="0" max="1000000000000" step="1" value="0" required>
+          </div>
+          <div class="profile-field">
+            <label id="deal-status-label">Status</label>
+            <div class="deal-status-select" id="deal-status-select">
+              <select id="deal-status" name="status" hidden>
+                <option value="Open">Open</option>
+                <option value="Won">Won</option>
+                <option value="Lost">Lost</option>
+              </select>
+              <button
+                class="deal-status-select__trigger"
+                id="deal-status-trigger"
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-labelledby="deal-status-label deal-status-value"
+              >
+                <span id="deal-status-value">Open</span>
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="m3.5 6 4.5 4 4.5-4"></path>
+                </svg>
+              </button>
+              <div
+                class="deal-status-select__options"
+                id="deal-status-options"
+                role="listbox"
+                aria-labelledby="deal-status-label"
+                hidden
+              >
+                <button type="button" role="option" data-value="Open" aria-selected="true">Open</button>
+                <button type="button" role="option" data-value="Won" aria-selected="false">Won</button>
+                <button type="button" role="option" data-value="Lost" aria-selected="false">Lost</button>
+              </div>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label id="deal-priority-label">Priority</label>
+            <div class="deal-custom-select" id="deal-priority-select">
+              <select id="deal-priority" name="priority" hidden required>
+                <option value="High">High</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="Low">Low</option>
+              </select>
+              <button
+                class="deal-custom-select__trigger"
+                id="deal-priority-trigger"
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-labelledby="deal-priority-label deal-priority-value"
+              >
+                <span id="deal-priority-value">Medium</span>
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="m3.5 6 4.5 4 4.5-4"></path>
+                </svg>
+              </button>
+              <div
+                class="deal-custom-select__options"
+                id="deal-priority-options"
+                role="listbox"
+                aria-labelledby="deal-priority-label"
+                hidden
+              >
+                <button type="button" role="option" data-value="High" aria-selected="false">High</button>
+                <button type="button" role="option" data-value="Medium" aria-selected="true">Medium</button>
+                <button type="button" role="option" data-value="Low" aria-selected="false">Low</button>
+              </div>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label for="deal-close-date">Close date</label>
+            <input id="deal-close-date" name="closeDate" type="date">
+          </div>
+        </div>
+        <div class="profile-field">
+          <label id="deal-assigned-label">Assigned to</label>
+          <div class="deal-custom-select" id="deal-assigned-select">
+            <select id="deal-assigned" name="assignedEmail" hidden required></select>
+            <button
+              class="deal-custom-select__trigger"
+              id="deal-assigned-trigger"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-labelledby="deal-assigned-label deal-assigned-value"
+            >
+              <span id="deal-assigned-value">Choose assignee</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m3.5 6 4.5 4 4.5-4"></path>
+              </svg>
+            </button>
+            <div
+              class="deal-custom-select__options"
+              id="deal-assigned-options"
+              role="listbox"
+              aria-labelledby="deal-assigned-label"
+              hidden
+            ></div>
+          </div>
+        </div>
+        <p class="profile-message" id="deal-message" role="status" aria-live="polite"></p>
+        <footer class="profile-dialog__footer">
+          <button class="profile-save" id="deal-save" type="submit">Create deal</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="profile-dialog client-dialog" id="client-dialog" aria-labelledby="client-dialog-title">
+      <form class="profile-form client-form" id="client-form">
+        <header class="profile-dialog__header">
+          <h2 id="client-dialog-title">New client</h2>
+          <button class="profile-close" id="client-close" type="button" aria-label="Close dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </header>
+        <input type="hidden" name="type" value="prospect">
+        <div class="client-form-grid">
+          <div class="profile-field client-field--wide">
+            <label for="client-company">Company name</label>
+            <input id="client-company" name="company" type="text" maxlength="120" required autofocus>
+          </div>
+          <div class="profile-field">
+            <label for="client-email">Business email</label>
+            <input id="client-email" name="email" type="email" maxlength="254">
+          </div>
+          <div class="profile-field">
+            <label for="client-phone">Phone</label>
+            <input id="client-phone" name="phone" type="tel" maxlength="40">
+          </div>
+          <div class="profile-field">
+            <label for="client-website">Website</label>
+            <input id="client-website" name="website" type="url" maxlength="2048">
+          </div>
+          <div class="profile-field">
+            <label for="client-country">Country</label>
+            <input id="client-country" name="country" type="text" maxlength="80">
+          </div>
+          <div class="profile-field">
+            <label for="client-industry">Industry</label>
+            <input id="client-industry" name="industry" type="text" maxlength="100">
+          </div>
+          <div class="profile-field">
+            <label id="client-status-label">Status</label>
+            <div class="deal-custom-select" id="client-status-select">
+              <select id="client-status" name="status" hidden required>
+                <option value="active">active</option>
+                <option value="inactive">inactive</option>
+              </select>
+              <button class="deal-custom-select__trigger" id="client-status-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="client-status-label client-status-value">
+                <span id="client-status-value">active</span>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 6 4.5 4 4.5-4"></path></svg>
+              </button>
+              <div class="deal-custom-select__options" id="client-status-options" role="listbox" aria-labelledby="client-status-label" hidden>
+                <button type="button" role="option" data-value="active" aria-selected="true">active</button>
+                <button type="button" role="option" data-value="inactive" aria-selected="false">inactive</button>
+              </div>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label id="client-manager-label">Account manager</label>
+            <div class="deal-custom-select" id="client-manager-select">
+              <select id="client-manager" name="managerEmail" hidden></select>
+              <button class="deal-custom-select__trigger" id="client-manager-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="client-manager-label client-manager-value">
+                <span id="client-manager-value">Unassigned</span>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 6 4.5 4 4.5-4"></path></svg>
+              </button>
+              <div class="deal-custom-select__options" id="client-manager-options" role="listbox" aria-labelledby="client-manager-label" hidden></div>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label for="client-tags">Tags (comma separated)</label>
+            <input id="client-tags" name="tags" type="text" maxlength="820">
+          </div>
+          <div class="profile-field client-field--wide">
+            <label for="client-address">Address</label>
+            <textarea id="client-address" name="address" maxlength="500" rows="3"></textarea>
+          </div>
+          <div class="profile-field client-field--wide">
+            <label for="client-notes">Notes</label>
+            <textarea id="client-notes" name="notes" maxlength="2000" rows="3"></textarea>
+          </div>
+        </div>
+        <p class="profile-message" id="client-message" role="status" aria-live="polite"></p>
+        <footer class="profile-dialog__footer">
+          <button class="profile-save" id="client-save" type="submit">Create client</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="profile-dialog lead-dialog" id="lead-dialog" aria-labelledby="lead-dialog-title">
+      <form class="profile-form lead-form" id="lead-form">
+        <header class="profile-dialog__header">
+          <h2 id="lead-dialog-title">New lead</h2>
+          <button class="profile-close" id="lead-close" type="button" aria-label="Close dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="lead-form-grid">
+          <div class="profile-field lead-field--wide">
+            <label for="lead-company">Company name</label>
+            <input id="lead-company" name="company" type="text" maxlength="120" required>
+          </div>
+          <div class="profile-field">
+            <label for="lead-contact-name">Contact person</label>
+            <input id="lead-contact-name" name="contactName" type="text" maxlength="100" required>
+          </div>
+          <div class="profile-field">
+            <label for="lead-contact-email">Contact email</label>
+            <input id="lead-contact-email" name="contactEmail" type="email" maxlength="254">
+          </div>
+          <div class="profile-field">
+            <label for="lead-phone">Phone</label>
+            <input id="lead-phone" name="phone" type="tel" maxlength="40">
+          </div>
+          <div class="profile-field">
+            <label for="lead-source">Source</label>
+            <input id="lead-source" name="source" type="text" maxlength="30" placeholder="e.g. website, referral" required>
+          </div>
+          <div class="profile-field">
+            <label for="lead-status">Status</label>
+            <select id="lead-status" name="status" required>
+              <option>New</option>
+              <option>Qualified</option>
+              <option>Proposal</option>
+              <option>Negotiation</option>
+              <option>Contract</option>
+              <option>Won</option>
+              <option>Lost</option>
+            </select>
+          </div>
+          <div class="profile-field">
+            <label for="lead-priority">Priority</label>
+            <select id="lead-priority" name="priority" required>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+              <option>Urgent</option>
+            </select>
+          </div>
+          <div class="profile-field">
+            <label for="lead-team">Team</label>
+            <select id="lead-team" name="teamId">
+              <option value="">No team</option>
+            </select>
+          </div>
+          <div class="profile-field">
+            <label for="lead-assigned">Team member</label>
+            <select id="lead-assigned" name="assignedEmail" disabled>
+              <option value="">No team</option>
+            </select>
+          </div>
+          <div class="profile-field">
+            <label for="lead-value">Estimated value</label>
+            <div class="lead-value-input">
+              <input id="lead-value" name="value" type="number" min="0" max="1000000000000" step="1">
+              <select id="lead-currency" name="currency" aria-label="Value currency">
+                <option>USD</option>
+                <option>BDT</option>
+                <option>EUR</option>
+                <option>RMB</option>
+              </select>
+            </div>
+          </div>
+          <div class="profile-field">
+            <label for="lead-follow-up">Follow-up date</label>
+            <input id="lead-follow-up" name="followUp" type="date">
+          </div>
+          <div class="profile-field">
+            <label for="lead-follow-up-time">Follow-up time</label>
+            <input id="lead-follow-up-time" name="followUpTime" type="time">
+          </div>
+          <div class="profile-field lead-field--wide">
+            <label for="lead-source-details">Source details</label>
+            <input id="lead-source-details" name="sourceDetails" type="text" maxlength="300" placeholder="Add campaign, referral, or other source details">
+          </div>
+          <div class="profile-field lead-field--wide">
+            <label for="lead-notes">Notes</label>
+            <textarea id="lead-notes" name="notes" maxlength="2000" rows="3"></textarea>
+          </div>
+        </div>
+        <p class="profile-message" id="lead-message" role="status" aria-live="polite"></p>
+        <footer class="profile-dialog__footer">
+          <button class="profile-save lead-save" id="lead-save" type="submit">Create lead</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="profile-dialog lead-history-dialog" id="lead-history-dialog" aria-labelledby="lead-history-title">
+      <div class="profile-form">
+        <header class="profile-dialog__header">
+          <h2 id="lead-history-title">Lead history</h2>
+          <button class="profile-close" id="lead-history-close" type="button" aria-label="Close history">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </header>
+        <ol class="lead-history-list" id="lead-history-list"></ol>
+      </div>
+    </dialog>
+
+    <dialog class="profile-dialog team-dialog" id="team-dialog" aria-labelledby="team-dialog-title">
+      <form class="profile-form" id="team-form">
+        <header class="profile-dialog__header">
+          <h2 id="team-dialog-title">Create new team</h2>
+          <button class="profile-close" id="team-close" type="button" aria-label="Close dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="profile-field">
+          <label for="team-name">Team name</label>
+          <input id="team-name" name="name" type="text" maxlength="60" required>
+        </div>
+        <p class="profile-message" id="team-message" role="status" aria-live="polite"></p>
+        <footer class="profile-dialog__footer">
+          <button class="profile-save" id="team-create" type="submit">Create team</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="profile-dialog" id="profile-dialog" aria-labelledby="profile-title">
+      <form class="profile-form" id="profile-form">
+        <header class="profile-dialog__header">
+          <h2 id="profile-title">My profile</h2>
+          <button class="profile-close" id="profile-close" type="button" aria-label="Close profile">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18"></path>
+            </svg>
+          </button>
+        </header>
+
+        <div class="profile-photo-row">
+          <span class="profile-photo" id="profile-photo-preview" aria-label="Profile photo preview">
+            <img id="profile-photo-image" alt="">
+            <svg class="profile-photo__placeholder" viewBox="0 0 32 32" aria-hidden="true">
+              <circle cx="16" cy="10" r="5"></circle>
+              <path d="M6 27v-2a10 10 0 0 1 20 0v2"></path>
+            </svg>
+          </span>
+          <input
+            class="visually-hidden"
+            id="profile-photo-input"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+          >
+          <label class="photo-picker" for="profile-photo-input">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+              <circle cx="9" cy="11" r="2"></circle>
+              <path d="m21 16-5-5L5 21M16 3v6m-3-3h6"></path>
+            </svg>
+            <span>Choose photo</span>
+          </label>
+        </div>
+
+        <p class="profile-message" id="profile-message" role="status" aria-live="polite"></p>
+
+        <div class="profile-field">
+          <label for="profile-name">Name</label>
+          <input id="profile-name" name="name" type="text" maxlength="80" autocomplete="name" required>
+        </div>
+        <div class="profile-field">
+          <label for="profile-designation">Designation</label>
+          <input id="profile-designation" name="designation" type="text" maxlength="80">
+        </div>
+
+        <footer class="profile-dialog__footer">
+          <button class="profile-save" id="profile-save" type="submit">Save profile</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog class="confirm-dialog" id="confirm-dialog" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
+      <div class="confirm-dialog__body">
+        <span class="confirm-dialog__icon confirm-dialog__icon--danger" id="confirm-dialog-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 8v5m0 3h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3l-7.5-13a2 2 0 0 0-3.4-.1Z"></path>
+          </svg>
+        </span>
+        <div>
+          <p class="confirm-dialog__eyebrow">Please confirm</p>
+          <h2 id="confirm-dialog-title">Confirm action</h2>
+          <p class="confirm-dialog__message" id="confirm-dialog-message"></p>
+        </div>
+      </div>
+      <footer class="confirm-dialog__footer">
+        <button class="confirm-dialog__button confirm-dialog__button--cancel" id="confirm-dialog-cancel" type="button">Cancel</button>
+        <button class="confirm-dialog__button confirm-dialog__button--danger" id="confirm-dialog-submit" type="button">Delete</button>
+      </footer>
+    </dialog>
+  </body>
+</html>
