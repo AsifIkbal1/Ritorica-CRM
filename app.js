@@ -170,6 +170,10 @@ let returnToEmployeeDialog = false;
 let editingEmployeeId = "";
 let resolveConfirmation = null;
 
+function hasAdminAccess(role) {
+  return role === "Admin" || role === "Super Admin";
+}
+
 function confirmAction({ title, message, confirmLabel = "Continue", tone = "danger" }) {
   confirmTitle.textContent = title;
   confirmMessage.textContent = message;
@@ -276,7 +280,7 @@ function showSignedIn(email, savedProfile, role = "Admin") {
   document.querySelectorAll("[data-admin-only]").forEach((group) => {
     group.hidden = false;
     group.querySelectorAll(".nav-link").forEach((link) => {
-      const restricted = role !== "Admin";
+      const restricted = !hasAdminAccess(role);
       link.disabled = restricted;
       link.title = restricted ? "Available to administrators only" : "";
     });
@@ -550,7 +554,7 @@ async function loadAuditLogs() {
 }
 
 function setPage(pageKey) {
-  if (signedInRole !== "Admin" && ["employees", "audit"].includes(pageKey)) return;
+  if (!hasAdminAccess(signedInRole) && ["employees", "audit"].includes(pageKey)) return;
   const page = pages[pageKey];
   if (!page) return;
 

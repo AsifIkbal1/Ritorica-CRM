@@ -436,8 +436,8 @@ button {
   align-items: center;
   gap: 12px;
   padding: 0 36px;
-  border-bottom: 1px solid #e8ecf4;
-  background: #fff;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--page-background);
 }
 
 .undo-notice {

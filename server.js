@@ -59,6 +59,10 @@ const staticFiles = new Map([
   ["/assets/ritorica-logo-login.png", ["assets/ritorica-logo-login.png", "image/png"]],
 ]);
 
+function isAdminRole(role) {
+  return role === "Admin" || role === "Super Admin";
+}
+
 async function hashPassword(password, salt = crypto.randomBytes(16)) {
   const hash = await scryptAsync(password, salt, 64, {
     N: 16384,
@@ -75,7 +79,7 @@ async function hashPassword(password, salt = crypto.randomBytes(16)) {
 function publicProfile(account, role = "Admin") {
   return {
     name: account.name || account.email.split("@")[0].replace(/[._-]+/g, " "),
-    designation: account.designation || (role === "Admin" ? "Super Admin" : "Employee"),
+    designation: account.designation || (isAdminRole(role) ? "Super Admin" : "Employee"),
     photo: account.photo || "",
   };
 }
@@ -709,7 +713,7 @@ async function writeRequestAuditLog(context, response) {
 }
 
 async function findAccount(email, role) {
-  if (role === "Admin") {
+  if (isAdminRole(role)) {
     const account = await loadAccount();
     return account?.email === email ? account : null;
   }
@@ -718,7 +722,7 @@ async function findAccount(email, role) {
 }
 
 function isAdmin(session) {
-  return session?.role === "Admin";
+  return isAdminRole(session?.role);
 }
 
 function publicEmployee(employee, teams) {
