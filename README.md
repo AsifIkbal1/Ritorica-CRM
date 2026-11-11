@@ -19,6 +19,9 @@
 
 3. Open <http://127.0.0.1:3000> and sign in with the account credentials.
 
+In VS Code, you can start the server from **Terminal > Run Task > Start Ritorica CRM**.
+The task runs the local server in the background while VS Code remains open.
+
 Only one admin account is supported. To use a different email when creating the
 account, replace `admin@ritorica.test` in the setup command. The service binds to
 localhost by default. The server refuses non-loopback `HOST` values unless both
