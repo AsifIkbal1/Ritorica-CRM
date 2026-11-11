@@ -665,6 +665,12 @@ function auditLocation(ip) {
   return "Unknown (configure AUDIT_LOCATION; no external geolocation lookup)";
 }
 
+function auditRoleLabel(role) {
+  if (isAdminRole(role)) return "Super Admin";
+  if (role === "Employee" || role === "User") return "User";
+  return "Unknown";
+}
+
 async function writeRequestAuditLog(context, response) {
   if (!context.pathname.startsWith("/api/")) return;
   const statusCode = response.statusCode || 500;
@@ -690,7 +696,7 @@ async function writeRequestAuditLog(context, response) {
         auditCompanyFrom(context.requestValue) ||
         "—",
     userName,
-    userRole: actorRole === "Admin" ? "Admin" : actorRole === "Employee" ? "User" : "Unknown",
+    userRole: auditRoleLabel(actorRole),
     action: context.action,
     module: context.module,
     previousValue: context.eventPreviousValue !== undefined
@@ -2103,7 +2109,10 @@ async function handleRequest(request, response) {
       ? Math.min(Math.max(requestedOffset, 0), logs.length)
       : 0;
     return sendJson(response, 200, {
-      logs: logs.slice(offset, offset + limit),
+      logs: logs.slice(offset, offset + limit).map((log) => ({
+        ...log,
+        userRole: auditRoleLabel(log.userRole),
+      })),
       total: logs.length,
       offset,
     });
