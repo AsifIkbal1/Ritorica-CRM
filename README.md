@@ -22,6 +22,12 @@
 In VS Code, you can start the server from **Terminal > Run Task > Start Ritorica CRM**.
 The task runs the local server in the background while VS Code remains open.
 
+The account created with `create-admin` is the Super Admin. It has access to all
+leads and their assignment history, clients, deals, employees, teams, audit logs,
+and workspace notifications. The app stores this account with the internal
+`Admin` role; the Super Admin designation shown in the profile does not limit
+its access.
+
 Only one admin account is supported. To use a different email when creating the
 account, replace `admin@ritorica.test` in the setup command. The service binds to
 localhost by default. The server refuses non-loopback `HOST` values unless both

@@ -1158,7 +1158,7 @@ async function loadLeadDashboard() {
     }
     dashboardOverviewMessage.textContent = "";
     renderDashboardOverview(result.overview);
-    renderHandoffFlows(result.flows, signedInRole === "Admin");
+    renderHandoffFlows(result.flows, hasAdminAccess(signedInRole));
     renderAssignedLeads(result.assignedLeads);
     renderNotifications(result.notifications, result.unreadCount);
   } catch {

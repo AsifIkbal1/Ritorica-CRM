@@ -826,6 +826,12 @@ async function createLeadNotification({ lead, recipientEmail, actorEmail, actorN
   await writeJsonFile(NOTIFICATIONS_FILE, notifications);
 }
 
+function notificationsForSession(notifications, session) {
+  return notifications.filter(
+    (notification) => isAdmin(session) || notification.recipientEmail === session.email,
+  );
+}
+
 function getMonthKeyInLeadTimeZone(value) {
   if (typeof value !== "string" || !value) return "";
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.slice(0, 7);
@@ -880,6 +886,7 @@ async function handleLeadDashboard(request, response, session) {
   const assignedLeads = visibleLeads
     .filter((lead) => lead.assignedEmail === session.email)
     .map((lead) => publicLeadForUser(lead, assignees, teams, session));
+  const visibleNotifications = notificationsForSession(notifications, session);
   return sendJson(response, 200, {
     overview: {
       leads: recent(visibleLeads).map((lead) => ({
@@ -912,31 +919,29 @@ async function handleLeadDashboard(request, response, session) {
     },
     flows,
     assignedLeads,
-    notifications: notifications
-      .filter((notification) => notification.recipientEmail === session.email)
+    notifications: visibleNotifications
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .slice(0, 30),
-    unreadCount: notifications.filter(
-      (notification) =>
-        notification.recipientEmail === session.email && !notification.readAt,
-    ).length,
+    unreadCount: visibleNotifications.filter((notification) => !notification.readAt).length,
   });
 }
 
 async function handleNotifications(request, response, session, notificationId = "") {
   const notifications = await loadNotifications();
   if (request.method === "GET") {
-    const mine = notifications
-      .filter((notification) => notification.recipientEmail === session.email)
+    const mine = notificationsForSession(notifications, session)
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .slice(0, 30);
     return sendJson(response, 200, {
       notifications: mine,
-      unreadCount: mine.filter((notification) => !notification.readAt).length,
+      unreadCount: notificationsForSession(notifications, session)
+        .filter((notification) => !notification.readAt).length,
     });
   }
   const notification = notifications.find(
-    (item) => item.id === notificationId && item.recipientEmail === session.email,
+    (item) =>
+      item.id === notificationId &&
+      (isAdmin(session) || item.recipientEmail === session.email),
   );
   if (!notification) return sendJson(response, 404, { error: "Notification not found." });
   if (!notification.readAt) {
@@ -1297,10 +1302,11 @@ async function handleProfileUpdate(request, response, session) {
   }
 
   account.name = name;
-  account.designation = designation || (session.role === "Admin" ? "Super Admin" : "Employee");
+  const isAdminAccount = isAdminRole(session.role);
+  account.designation = designation || (isAdminAccount ? "Super Admin" : "Employee");
   account.photo = photo;
-  const accountFile = session.role === "Admin" ? USERS_FILE : EMPLOYEES_FILE;
-  if (session.role === "Admin") {
+  const accountFile = isAdminAccount ? USERS_FILE : EMPLOYEES_FILE;
+  if (isAdminAccount) {
     await writeJsonFile(accountFile, account);
   } else {
     const employees = await loadEmployees();
@@ -2115,7 +2121,7 @@ async function handleRequest(request, response) {
       return sendJson(response, 400, { error: "The audit activity details are invalid." });
     }
     if (
-      session.role !== "Admin" &&
+      !isAdmin(session) &&
       ["Employees", "Teams", "Audit Logs"].includes(body.module)
     ) {
       return sendJson(response, 403, { error: "This workspace activity is not available to your role." });
