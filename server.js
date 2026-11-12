@@ -690,12 +690,18 @@ function auditStatusForCode(statusCode, pathname) {
   return "Success";
 }
 
-function auditLocation(ip) {
+function auditLocation(ip, context = {}) {
+  if (context.city && context.country) {
+    return `${context.city}, ${context.country}`;
+  }
+  if (context.country) {
+    return context.country;
+  }
   if (process.env.AUDIT_LOCATION) return process.env.AUDIT_LOCATION.slice(0, 120);
   if (ip === "127.0.0.1" || ip === "::1" || /^10\./.test(ip) || /^192\.168\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip)) {
-    return "Local network (approximate location unavailable)";
+    return "Local network";
   }
-  return "Unknown (configure AUDIT_LOCATION; no external geolocation lookup)";
+  return "Unknown";
 }
 
 function auditRoleLabel(role) {
@@ -744,7 +750,7 @@ async function writeRequestAuditLog(context, response) {
         : context.requestValue || "—",
     ipAddress: context.ip,
     device: context.device,
-    location: auditLocation(context.ip),
+    location: auditLocation(context.ip, context),
     status,
     description,
   };
@@ -2407,6 +2413,9 @@ function handleNodeRequest(request, response) {
     startedAt: new Date().toISOString(),
     ip: requestIp(request).replace(/^::ffff:/, ""),
     device: auditDevice(request.headers["user-agent"] || ""),
+    country: request.headers["x-vercel-ip-country"] || "",
+    city: request.headers["x-vercel-ip-city"] ? decodeURIComponent(request.headers["x-vercel-ip-city"]) : "",
+    region: request.headers["x-vercel-ip-country-region"] || "",
     actorEmail: "",
     actorName: "",
     actorRole: "Unknown",
