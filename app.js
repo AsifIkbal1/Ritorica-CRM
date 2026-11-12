@@ -13,10 +13,6 @@ const accountDesignation = document.querySelector("#account-designation");
 const sidebar = document.querySelector("#sidebar");
 const sidebarToggle = document.querySelector("#menu-toggle");
 const sidebarBackdrop = document.querySelector("#sidebar-backdrop");
-const undoNotice = document.querySelector("#undo-notice");
-const undoNoticeMessage = document.querySelector("#undo-notice-message");
-const undoNoticeAction = document.querySelector("#undo-notice-action");
-const undoNoticeClose = document.querySelector("#undo-notice-close");
 const notificationButton = document.querySelector("#notification-button");
 const notificationPanel = document.querySelector("#notification-panel");
 const notificationCount = document.querySelector("#notification-count");
@@ -291,10 +287,8 @@ function showSignedIn(email, savedProfile, role = "Admin") {
   setPage("dashboard");
 }
 
-function showUndoNotice(undo) {
+function rememberUndoEntry(undo) {
   availableUndo = undo;
-  undoNoticeMessage.textContent = `“${undo.label}” deleted. Press Ctrl+Z to undo.`;
-  undoNotice.hidden = false;
 }
 
 async function loadAvailableUndo() {
@@ -302,11 +296,7 @@ async function loadAvailableUndo() {
     const response = await fetch("/api/undo-deletion", { credentials: "same-origin" });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not check undo history.");
-    if (result.undo) showUndoNotice(result.undo);
-    else {
-      availableUndo = null;
-      undoNotice.hidden = true;
-    }
+    availableUndo = result.undo;
   } catch (error) {
     console.error("Could not load undo history:", error);
   }
@@ -315,7 +305,6 @@ async function loadAvailableUndo() {
 async function undoLastDeletion() {
   if (!availableUndo || undoInProgress) return;
   undoInProgress = true;
-  undoNoticeAction.disabled = true;
   try {
     const response = await fetch("/api/undo-deletion", {
       method: "POST",
@@ -323,13 +312,12 @@ async function undoLastDeletion() {
     });
     const result = await response.json();
     if (!response.ok) {
-      undoNoticeMessage.textContent = result.error || "Could not undo the deletion.";
+      console.error("Could not undo the deletion:", result.error || response.status);
       return;
     }
 
     const resource = result.undone.resource;
     availableUndo = null;
-    undoNotice.hidden = true;
     const refresh = {
       lead: () => loadLeads(),
       client: () => loadClients(),
@@ -341,18 +329,13 @@ async function undoLastDeletion() {
     if (resource === "employee" || resource === "team") await loadLeads();
     if (["lead", "client", "deal"].includes(resource)) await loadLeadDashboard();
     await loadAvailableUndo();
-  } catch {
-    undoNoticeMessage.textContent = "Could not connect to the server. Please try again.";
+  } catch (error) {
+    console.error("Could not connect to undo the deletion:", error);
   } finally {
     undoInProgress = false;
-    undoNoticeAction.disabled = false;
   }
 }
 
-undoNoticeAction.addEventListener("click", undoLastDeletion);
-undoNoticeClose.addEventListener("click", () => {
-  undoNotice.hidden = true;
-});
 document.addEventListener("keydown", (event) => {
   if (!(event.ctrlKey || event.metaKey) || event.key.toLocaleLowerCase() !== "z" || !availableUndo) return;
   const target = event.target;
@@ -421,7 +404,6 @@ document.querySelector("#sign-out").addEventListener("click", async () => {
     appShell.hidden = true;
     loginView.hidden = false;
     availableUndo = null;
-    undoNotice.hidden = true;
     loginCard.querySelector("#email").focus();
   } catch {
     window.alert("Could not connect to the server. Please try again.");
@@ -1388,7 +1370,7 @@ async function deleteLead(lead) {
       leadsMessage.textContent = result.error || `Could not delete ${lead.company}.`;
       return;
     }
-    if (result.undo) showUndoNotice(result.undo);
+    if (result.undo) rememberUndoEntry(result.undo);
     await loadLeads();
   } catch {
     leadsMessage.textContent = "Could not connect to the server. Please try again.";
@@ -1772,7 +1754,7 @@ async function deleteClient(client) {
       clientsMessage.textContent = result.error || `Could not delete ${client.company}.`;
       return;
     }
-    if (result.undo) showUndoNotice(result.undo);
+    if (result.undo) rememberUndoEntry(result.undo);
     await loadClients();
   } catch {
     clientsMessage.textContent = "Could not connect to the server. Please try again.";
@@ -1855,7 +1837,7 @@ async function deleteDeal(deal) {
       dealsMessage.textContent = result.error || `Could not delete ${deal.title}.`;
       return;
     }
-    if (result.undo) showUndoNotice(result.undo);
+    if (result.undo) rememberUndoEntry(result.undo);
     await loadDeals();
   } catch {
     dealsMessage.textContent = "Could not connect to the server. Please try again.";
@@ -2139,7 +2121,7 @@ async function deleteRecord(url, errorMessage) {
       managementMessage.textContent = result.error || errorMessage;
       return;
     }
-    if (result.undo) showUndoNotice(result.undo);
+    if (result.undo) rememberUndoEntry(result.undo);
     await loadEmployeeManagement();
   } catch {
     managementMessage.textContent = "Could not connect to the server. Please try again.";

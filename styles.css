@@ -440,76 +440,6 @@ button {
   background: var(--page-background);
 }
 
-.undo-notice {
-  position: fixed;
-  z-index: 80;
-  right: 24px;
-  bottom: 24px;
-  display: flex;
-  max-width: min(520px, calc(100vw - 32px));
-  align-items: center;
-  gap: 14px;
-  padding: 12px 13px 12px 17px;
-  border: 1px solid #dce4f2;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 12px 38px rgb(22 34 61 / 18%);
-  color: var(--text-primary);
-}
-
-.undo-notice[hidden] {
-  display: none;
-}
-
-.undo-notice__message {
-  min-width: 0;
-  color: #344054;
-  font-size: 13px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.undo-notice__action {
-  flex: 0 0 auto;
-  min-height: 34px;
-  padding: 0 13px;
-  border: 0;
-  border-radius: 9px;
-  background: #eaf0ff;
-  color: var(--brand-blue);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.undo-notice__action:hover:not(:disabled) {
-  background: #dce6ff;
-}
-
-.undo-notice__action:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
-.undo-notice__close {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #667085;
-  font-size: 21px;
-  line-height: 1;
-}
-
-.undo-notice__close:hover {
-  background: #f0f3f8;
-  color: #344054;
-}
-
 .notification-menu {
   position: relative;
   margin-left: auto;
@@ -3181,13 +3111,6 @@ button {
     padding: 0 16px;
   }
 
-  .undo-notice {
-    right: 12px;
-    bottom: 12px;
-    gap: 9px;
-    padding: 10px;
-  }
-
   .notification-panel {
     position: fixed;
     top: 66px;
@@ -3458,8 +3381,6 @@ button {
   .row-action,
   .client-delete-button,
   .lead-icon-button,
-  .undo-notice__action,
-  .undo-notice__close,
   .confirm-dialog__button {
     transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease,
       border-color 150ms ease, color 150ms ease;
@@ -3478,16 +3399,11 @@ button {
   .row-action:hover:not(:disabled),
   .client-delete-button:hover:not(:disabled),
   .lead-icon-button:hover:not(:disabled),
-  .undo-notice__action:hover:not(:disabled),
   .confirm-dialog__button:hover:not(:disabled) {
     transform: translateY(-1px);
   }
 
   .notification-button:hover,
-  .undo-notice__close:hover {
-    transform: scale(1.05);
-  }
-
   .login-card:hover input:not(:focus) {
     border-color: #c5d2ec;
   }

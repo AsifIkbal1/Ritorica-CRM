@@ -22,6 +22,53 @@
 In VS Code, you can start the server from **Terminal > Run Task > Start Ritorica CRM**.
 The task runs the local server in the background while VS Code remains open.
 
+## Deploy to Vercel
+
+The app's API runs as a Vercel Node.js Function, and CRM records and login
+sessions are stored in PostgreSQL. Do not rely on the function's local
+filesystem for persistent data.
+
+1. Create a PostgreSQL database (for example, a Neon database connected through
+   the Vercel Marketplace) and copy its pooled connection string. Before the
+   first app request, optionally import the existing local JSON records:
+
+   ```powershell
+   $env:DATABASE_URL = "your-postgres-connection-string"
+   npm run import-data
+   Remove-Item Env:DATABASE_URL
+   ```
+
+   The importer skips JSON files that do not exist and database records that
+   are already present. Keep the connection string private.
+
+2. Push this project to GitHub and import the repository in Vercel. Vercel
+   detects `api/[...path].js` and `vercel.json`; no custom build command is
+   needed.
+
+3. Add these Vercel Project Environment Variables for Production:
+
+   - `DATABASE_URL`: the PostgreSQL connection string.
+   - `ADMIN_EMAIL` and `ADMIN_PASSWORD`: required only if `users.json` was not
+     imported. The password must be 12 to 128 characters. The first request
+     that needs the admin account creates it in PostgreSQL.
+   - `CRON_SECRET`: a long random secret. Vercel uses it to authorize the
+     scheduled lead-reminder endpoint.
+   - SMTP settings (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, and,
+     if needed, `SMTP_USER` and `SMTP_PASSWORD`) to enable email.
+
+   Never commit these values or put them in source files. Redeploy after
+   changing Vercel environment variables. Once a freshly bootstrapped admin
+   has signed in successfully, you can remove `ADMIN_PASSWORD` from Vercel.
+
+4. Open the Vercel deployment URL and sign in with the imported admin account,
+   or the `ADMIN_EMAIL` and `ADMIN_PASSWORD` values. `vercel.json` schedules
+   lead reminders daily; Vercel plan limits may affect scheduled execution.
+
+The local `npm start` flow continues to use JSON files. Vercel uses PostgreSQL
+when `DATABASE_URL` or `POSTGRES_URL` is set. The one-time importer reads
+`data/*.json` from the local project; the `data` directory is intentionally
+not uploaded to GitHub.
+
 The account created with `create-admin` is the Super Admin. It has access to all
 leads and their assignment history, clients, deals, employees, teams, audit logs,
 and workspace notifications. The app stores this account with the internal
@@ -58,7 +105,7 @@ from **Employees & Teams** using **Reset password**. Passwords must be at least
 then sign in with the new password.
 
 Deleted leads, clients, deals, employees, and teams can be restored for 24 hours
-by the same signed-in account using **Undo** or **Ctrl+Z** (or **Cmd+Z** on Mac).
+by the same signed-in account using **Ctrl+Z** (or **Cmd+Z** on Mac).
 The undo history is kept in `data/undo-deletions.json`, retains up to 20 recent
 deletions per account, and expired entries are removed the next time undo
 history is accessed. Restoring an employee does not restore previously invalidated login sessions.

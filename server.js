@@ -4,6 +4,7 @@ const http = require("node:http");
 const path = require("node:path");
 const { AsyncLocalStorage } = require("node:async_hooks");
 const nodemailer = require("nodemailer");
+const database = require("./database");
 
 const ROOT = __dirname;
 const DATA_DIRECTORY = path.join(ROOT, "data");
@@ -50,6 +51,28 @@ const scryptAsync = (password, salt, length, options) =>
     });
   });
 
+function usesDatabase() {
+  if (process.env.VERCEL === "1" && !database.isDatabaseConfigured()) {
+    const error = new Error("Set DATABASE_URL (or POSTGRES_URL) in the Vercel project environment.");
+    error.statusCode = 503;
+    throw error;
+  }
+  return database.isDatabaseConfigured();
+}
+
+async function readJsonFile(filePath) {
+  if (usesDatabase()) {
+    const value = await database.getJson(filePath);
+    if (value === undefined) {
+      const error = new Error(`No database record exists for ${path.basename(filePath)}.`);
+      error.code = "ENOENT";
+      throw error;
+    }
+    return value;
+  }
+  return JSON.parse(await fs.readFile(filePath, "utf8"));
+}
+
 const staticFiles = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/index.html", ["index.html", "text/html; charset=utf-8"]],
@@ -86,7 +109,7 @@ function publicProfile(account, role = "Admin") {
 
 async function loadEmployees() {
   try {
-    return JSON.parse(await fs.readFile(EMPLOYEES_FILE, "utf8"));
+    return await readJsonFile(EMPLOYEES_FILE);
   } catch (error) {
     if (error.code === "ENOENT") return [];
     throw error;
@@ -95,7 +118,7 @@ async function loadEmployees() {
 
 async function loadTeams() {
   try {
-    return JSON.parse(await fs.readFile(TEAMS_FILE, "utf8"));
+    return await readJsonFile(TEAMS_FILE);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     const teams = DEFAULT_TEAMS.map((name) => ({
@@ -110,7 +133,7 @@ async function loadTeams() {
 
 async function loadDeals() {
   try {
-    return JSON.parse(await fs.readFile(DEALS_FILE, "utf8"));
+    return await readJsonFile(DEALS_FILE);
   } catch (error) {
     if (error.code === "ENOENT") return [];
     throw error;
@@ -119,7 +142,7 @@ async function loadDeals() {
 
 async function loadClients() {
   try {
-    return JSON.parse(await fs.readFile(CLIENTS_FILE, "utf8"));
+    return await readJsonFile(CLIENTS_FILE);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     const account = await loadAccount();
@@ -170,7 +193,7 @@ async function loadClients() {
 
 async function loadLeads(teams) {
   try {
-    return JSON.parse(await fs.readFile(LEADS_FILE, "utf8"));
+    return await readJsonFile(LEADS_FILE);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     const [adminAccount, employees] = await Promise.all([loadAccount(), loadEmployees()]);
@@ -287,7 +310,7 @@ async function loadLeads(teams) {
 
 async function loadNotifications() {
   try {
-    return JSON.parse(await fs.readFile(NOTIFICATIONS_FILE, "utf8"));
+    return await readJsonFile(NOTIFICATIONS_FILE);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     return [];
@@ -295,18 +318,23 @@ async function loadNotifications() {
 }
 
 async function writeJsonFile(filePath, value) {
-  await fs.mkdir(DATA_DIRECTORY, { recursive: true });
   const auditContext = auditStorage.getStore();
   let auditChange = null;
   if (auditContext && filePath !== AUDIT_LOGS_FILE) {
     let previous = null;
     try {
-      previous = JSON.parse(await fs.readFile(filePath, "utf8"));
+      previous = await readJsonFile(filePath);
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
     auditChange = buildAuditChange(filePath, previous, value);
   }
+  if (usesDatabase()) {
+    await database.setJson(filePath, value);
+    if (auditChange) auditContext.changes.push(auditChange);
+    return;
+  }
+  await fs.mkdir(DATA_DIRECTORY, { recursive: true });
   const temporaryFile = `${filePath}.${crypto.randomBytes(8).toString("hex")}.tmp`;
   try {
     await fs.writeFile(temporaryFile, `${JSON.stringify(value, null, 2)}\n`, {
@@ -351,7 +379,7 @@ function publicUndoEntry(entry) {
 async function loadUndoEntries() {
   let entries;
   try {
-    entries = JSON.parse(await fs.readFile(UNDO_DELETIONS_FILE, "utf8"));
+    entries = await readJsonFile(UNDO_DELETIONS_FILE);
   } catch (error) {
     if (error.code === "ENOENT") return [];
     throw error;
@@ -567,7 +595,7 @@ function buildAuditChange(filePath, previous, next) {
 
 async function loadAuditLogs() {
   try {
-    const logs = JSON.parse(await fs.readFile(AUDIT_LOGS_FILE, "utf8"));
+    const logs = await readJsonFile(AUDIT_LOGS_FILE);
     return Array.isArray(logs) ? logs : [];
   } catch (error) {
     if (error.code === "ENOENT") return [];
@@ -577,9 +605,13 @@ async function loadAuditLogs() {
 
 function appendAuditLog(entry) {
   auditWriteQueue = auditWriteQueue.catch(() => {}).then(async () => {
-    await fs.mkdir(DATA_DIRECTORY, { recursive: true });
     const logs = await loadAuditLogs();
     logs.unshift(entry);
+    if (usesDatabase()) {
+      await writeJsonFile(AUDIT_LOGS_FILE, logs);
+      return;
+    }
+    await fs.mkdir(DATA_DIRECTORY, { recursive: true });
     const temporaryFile = `${AUDIT_LOGS_FILE}.${crypto.randomBytes(8).toString("hex")}.tmp`;
     try {
       await fs.writeFile(temporaryFile, `${JSON.stringify(logs)}\n`, {
@@ -1071,11 +1103,15 @@ async function createAdmin(email) {
     createdAt: new Date().toISOString(),
   };
 
-  await fs.mkdir(DATA_DIRECTORY, { recursive: true });
-  await fs.writeFile(USERS_FILE, `${JSON.stringify(account, null, 2)}\n`, {
-    encoding: "utf8",
-    flag: "wx",
-  });
+  if (usesDatabase()) {
+    await database.createJson(USERS_FILE, account);
+  } else {
+    await fs.mkdir(DATA_DIRECTORY, { recursive: true });
+    await fs.writeFile(USERS_FILE, `${JSON.stringify(account, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+  }
 
   console.log(`Admin account created.\nEmail: ${normalizedEmail}\nPassword: ${password}`);
 }
@@ -1112,11 +1148,50 @@ function sessionCookie(value, maxAge) {
   return `${SESSION_COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`;
 }
 
+function recordRequestBody(parsed) {
+  const auditContext = auditStorage.getStore();
+  if (auditContext) {
+    auditContext.requestValue = safeAuditValue(parsed);
+    if (
+      auditContext.pathname === "/api/login" &&
+      parsed &&
+      typeof parsed.email === "string" &&
+      parsed.email.trim()
+    ) {
+      auditContext.actorEmail = parsed.email.trim().toLowerCase();
+    }
+  }
+}
+
 async function readJsonBody(request, maxBytes = 16 * 1024) {
   if (!request.headers["content-type"]?.startsWith("application/json")) {
     const error = new Error("Content-Type must be application/json.");
     error.statusCode = 415;
     throw error;
+  }
+
+  if (request.body !== undefined) {
+    const body = typeof request.body === "string"
+      ? request.body
+      : Buffer.isBuffer(request.body)
+        ? request.body.toString("utf8")
+        : JSON.stringify(request.body);
+    if (Buffer.byteLength(body) > maxBytes) {
+      const error = new Error("Request body is too large.");
+      error.statusCode = 413;
+      throw error;
+    }
+    try {
+      const parsed = typeof request.body === "object" && !Buffer.isBuffer(request.body)
+        ? request.body
+        : JSON.parse(body);
+      recordRequestBody(parsed);
+      return parsed;
+    } catch {
+      const error = new Error("Request body must be valid JSON.");
+      error.statusCode = 400;
+      throw error;
+    }
   }
 
   let body = "";
@@ -1131,17 +1206,7 @@ async function readJsonBody(request, maxBytes = 16 * 1024) {
 
   try {
     const parsed = JSON.parse(body);
-    const auditContext = auditStorage.getStore();
-    if (auditContext) {
-      auditContext.requestValue = safeAuditValue(parsed);
-      if (
-        auditContext.pathname === "/api/login" &&
-        typeof parsed.email === "string" &&
-        parsed.email.trim()
-      ) {
-        auditContext.actorEmail = parsed.email.trim().toLowerCase();
-      }
-    }
+    recordRequestBody(parsed);
     return parsed;
   } catch {
     const error = new Error("Request body must be valid JSON.");
@@ -1232,7 +1297,7 @@ async function handleLogin(request, response) {
 
   loginAttempts.delete(ip);
   const token = crypto.randomBytes(32).toString("base64url");
-  sessions.set(token, {
+  await saveSession(token, {
     email: account.email,
     role,
     name: publicProfile(account, role).name,
@@ -1250,18 +1315,45 @@ async function handleLogin(request, response) {
 
 async function loadAccount() {
   try {
-    return JSON.parse(await fs.readFile(USERS_FILE, "utf8"));
+    return await readJsonFile(USERS_FILE);
   } catch (error) {
-    if (error.code === "ENOENT") return null;
+    if (error.code === "ENOENT") {
+      if (!usesDatabase()) return null;
+      const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+      const password = process.env.ADMIN_PASSWORD;
+      if (!email || !password) return null;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12 || password.length > 128) {
+        throw new Error("ADMIN_EMAIL must be valid and ADMIN_PASSWORD must be 12 to 128 characters.");
+      }
+      const account = {
+        email,
+        ...await hashPassword(password),
+        createdAt: new Date().toISOString(),
+      };
+      try {
+        await database.createJson(USERS_FILE, account);
+        return account;
+      } catch (createError) {
+        if (createError.code !== "23505") throw createError;
+        return readJsonFile(USERS_FILE);
+      }
+    }
     throw error;
   }
 }
 
-function getSession(request) {
+async function getSession(request) {
   const token = parseCookies(request.headers.cookie)[SESSION_COOKIE];
-  const session = sessions.get(token);
+  const session = token
+    ? usesDatabase()
+      ? await database.getSession(token)
+      : sessions.get(token)
+    : null;
   if (!session || session.expiresAt <= Date.now()) {
-    if (token) sessions.delete(token);
+    if (token) {
+      if (usesDatabase()) await database.deleteSession(token);
+      else sessions.delete(token);
+    }
     return null;
   }
   const auditContext = auditStorage.getStore();
@@ -1271,6 +1363,31 @@ function getSession(request) {
     auditContext.actorName = session.name || "";
   }
   return session;
+}
+
+async function saveSession(token, session) {
+  if (usesDatabase()) await database.setSession(token, session);
+  else sessions.set(token, session);
+}
+
+async function revokeSessions(email, role) {
+  if (usesDatabase()) {
+    await database.deleteSessionsForEmail(email, role);
+    return;
+  }
+  for (const [token, session] of sessions) {
+    if (session.email === email && (!role || session.role === role)) sessions.delete(token);
+  }
+}
+
+async function updateSessions(email, role, changes) {
+  if (usesDatabase()) {
+    await database.updateSessionsForEmail(email, role, changes);
+    return;
+  }
+  for (const session of sessions.values()) {
+    if (session.email === email && session.role === role) Object.assign(session, changes);
+  }
 }
 
 async function handleProfileUpdate(request, response, session) {
@@ -1355,11 +1472,7 @@ async function handleEmployees(request, response, session, employeeId = "") {
     const undoEntry = await saveUndoEntry(session, "employee", deletedEmployee.name, deletedEmployee);
     employees.splice(employeeIndex, 1);
     await commitDeletion(undoEntry, () => writeJsonFile(EMPLOYEES_FILE, employees));
-    for (const [token, activeSession] of sessions) {
-      if (activeSession.email === deletedEmployee.email && activeSession.role === "Employee") {
-        sessions.delete(token);
-      }
-    }
+    await revokeSessions(deletedEmployee.email, "Employee");
     return sendJson(response, 200, { ok: true, undo: publicUndoEntry(undoEntry) });
   }
 
@@ -1413,11 +1526,7 @@ async function handleEmployees(request, response, session, employeeId = "") {
     }
     employees[employees.indexOf(existingEmployee)] = employee;
     if (previousEmail !== email) {
-      for (const activeSession of sessions.values()) {
-        if (activeSession.email === previousEmail && activeSession.role === employeeSessionRole) {
-          activeSession.email = email;
-        }
-      }
+      await updateSessions(previousEmail, employeeSessionRole, { email });
     }
   } else {
     const passwordRecord = await hashPassword(password);
@@ -1435,17 +1544,9 @@ async function handleEmployees(request, response, session, employeeId = "") {
   }
   await writeJsonFile(EMPLOYEES_FILE, employees);
   const employeeSessionRole = isAdminRole(employee.role) ? "Admin" : "Employee";
-  for (const activeSession of sessions.values()) {
-    if (activeSession.email === employee.email && activeSession.role === employeeSessionRole) {
-      activeSession.name = employee.name;
-    }
-  }
+  await updateSessions(employee.email, employeeSessionRole, { name: employee.name });
   if (shouldInvalidatePasswordSessions) {
-    for (const [token, activeSession] of sessions) {
-      if (activeSession.email === existingEmployee.email && activeSession.role === employeeSessionRole) {
-        sessions.delete(token);
-      }
-    }
+    await revokeSessions(employee.email, employeeSessionRole);
   }
   return sendJson(response, request.method === "POST" ? 201 : 200, {
     employee: publicEmployee(employee, teams),
@@ -1467,11 +1568,7 @@ async function handleEmployeePasswordReset(request, response, session, employeeI
   Object.assign(employee, await hashPassword(password));
   await writeJsonFile(EMPLOYEES_FILE, employees);
   const employeeSessionRole = isAdminRole(employee.role) ? "Admin" : "Employee";
-  for (const [token, activeSession] of sessions) {
-    if (activeSession.email === employee.email && activeSession.role === employeeSessionRole) {
-      sessions.delete(token);
-    }
-  }
+  await revokeSessions(employee.email, employeeSessionRole);
   return sendJson(response, 200, {
     ok: true,
     message: `Password reset for ${employee.name}. They can now sign in with the new password.`,
@@ -2007,8 +2104,25 @@ async function handleRequest(request, response) {
   const url = new URL(request.url, "http://localhost");
   if (request.method === "GET" && (await serveStatic(url.pathname, response))) return;
 
+  if (url.pathname === "/api/cron/lead-reminders" && request.method === "GET") {
+    const secret = process.env.CRON_SECRET || "";
+    const authorization = request.headers.authorization || "";
+    const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+    const expectedBuffer = Buffer.from(secret);
+    const suppliedBuffer = Buffer.from(supplied);
+    if (
+      !secret ||
+      expectedBuffer.length !== suppliedBuffer.length ||
+      !crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)
+    ) {
+      return sendJson(response, 401, { error: "Unauthorized." });
+    }
+    await sendDueLeadReminders();
+    return sendJson(response, 200, { ok: true });
+  }
+
   if (url.pathname === "/api/undo-deletion" && ["GET", "POST"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleUndoDeletion(request, response, session);
   }
@@ -2018,7 +2132,7 @@ async function handleRequest(request, response) {
   }
 
   if (url.pathname === "/api/me" && request.method === "GET") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     const account = await findAccount(session.email, session.role);
     if (!account) {
@@ -2032,20 +2146,20 @@ async function handleRequest(request, response) {
   }
 
   if (url.pathname === "/api/profile" && request.method === "PUT") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleProfileUpdate(request, response, session);
   }
 
   if (url.pathname === "/api/employees" && ["GET", "POST"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleEmployees(request, response, session);
   }
 
   const employeePasswordMatch = /^\/api\/employees\/([^/]+)\/reset-password$/.exec(url.pathname);
   if (employeePasswordMatch && request.method === "POST") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleEmployeePasswordReset(
       request,
@@ -2057,45 +2171,45 @@ async function handleRequest(request, response) {
 
   const employeeMatch = /^\/api\/employees\/([^/]+)$/.exec(url.pathname);
   if (employeeMatch && ["PUT", "DELETE"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleEmployees(request, response, session, decodeURIComponent(employeeMatch[1]));
   }
 
   if (url.pathname === "/api/deals" && ["GET", "POST"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleDeals(request, response, session);
   }
 
   const dealMatch = /^\/api\/deals\/([^/]+)$/.exec(url.pathname);
   if (dealMatch && ["PUT", "DELETE"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleDeals(request, response, session, decodeURIComponent(dealMatch[1]));
   }
 
   if (url.pathname === "/api/clients" && ["GET", "POST"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleClients(request, response, session);
   }
 
   const clientMatch = /^\/api\/clients\/([^/]+)$/.exec(url.pathname);
   if (clientMatch && ["PUT", "DELETE"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleClients(request, response, session, decodeURIComponent(clientMatch[1]));
   }
 
   if (url.pathname === "/api/lead-dashboard" && request.method === "GET") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleLeadDashboard(request, response, session);
   }
 
   if (url.pathname === "/api/audit-logs" && request.method === "GET") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     if (!isAdmin(session)) return sendJson(response, 403, { error: "Super Admin access is required." });
     await auditWriteQueue;
@@ -2119,7 +2233,7 @@ async function handleRequest(request, response) {
   }
 
   if (url.pathname === "/api/audit-events" && request.method === "POST") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     const body = await readJsonBody(request);
     const allowedActions = ["Navigate", "Search", "Filter", "Open", "Export"];
@@ -2160,59 +2274,62 @@ async function handleRequest(request, response) {
   }
 
   if (url.pathname === "/api/notifications" && request.method === "GET") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleNotifications(request, response, session);
   }
 
   const notificationMatch = /^\/api\/notifications\/([^/]+)\/read$/.exec(url.pathname);
   if (notificationMatch && request.method === "POST") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleNotifications(request, response, session, decodeURIComponent(notificationMatch[1]));
   }
 
   if (url.pathname === "/api/lead-dashboard" || url.pathname === "/api/notifications") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
   }
 
   if (url.pathname === "/api/leads" && ["GET", "POST"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleLeads(request, response, session);
   }
 
   const leadConvertMatch = /^\/api\/leads\/([^/]+)\/convert$/.exec(url.pathname);
   if (leadConvertMatch && request.method === "POST") {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleLeads(request, response, session, decodeURIComponent(leadConvertMatch[1]), "convert");
   }
 
   const leadMatch = /^\/api\/leads\/([^/]+)$/.exec(url.pathname);
   if (leadMatch && ["PUT", "DELETE"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleLeads(request, response, session, decodeURIComponent(leadMatch[1]));
   }
 
   if (url.pathname === "/api/teams" && ["GET", "POST"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleTeams(request, response, session);
   }
 
   const teamMatch = /^\/api\/teams\/([^/]+)$/.exec(url.pathname);
   if (teamMatch && ["PUT", "DELETE"].includes(request.method)) {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) return sendJson(response, 401, { error: "Not signed in." });
     return handleTeams(request, response, session, decodeURIComponent(teamMatch[1]));
   }
 
   if (url.pathname === "/api/logout" && request.method === "POST") {
     const token = parseCookies(request.headers.cookie)[SESSION_COOKIE];
-    if (token) sessions.delete(token);
+    if (token) {
+      if (usesDatabase()) await database.deleteSession(token);
+      else sessions.delete(token);
+    }
     return sendJson(
       response,
       200,
@@ -2224,12 +2341,62 @@ async function handleRequest(request, response) {
   sendJson(response, 404, { error: "Not found." });
 }
 
-if (process.argv[2] === "create-admin") {
+function handleNodeRequest(request, response) {
+  const url = new URL(request.url, "http://localhost");
+  const context = {
+    method: request.method,
+    pathname: url.pathname,
+    module: auditModuleForPath(url.pathname),
+    action: auditActionForRequest(request, url.pathname),
+    startedAt: new Date().toISOString(),
+    ip: requestIp(request).replace(/^::ffff:/, ""),
+    device: auditDevice(request.headers["user-agent"] || ""),
+    actorEmail: "",
+    actorName: "",
+    actorRole: "Unknown",
+    requestValue: null,
+    responseValue: null,
+    changes: [],
+  };
+  let auditRecorded = false;
+  const recordAudit = () => {
+    if (auditRecorded) return;
+    auditRecorded = true;
+    writeRequestAuditLog(context, response).catch((error) => {
+      console.error(`Could not write audit log: ${error.message}`);
+    });
+  };
+  response.on("finish", recordAudit);
+  response.on("close", () => {
+    if (!response.writableFinished) {
+      response.statusCode = 499;
+      recordAudit();
+    }
+  });
+  auditStorage.run(context, () => {
+    handleRequest(request, response).catch((error) => {
+      console.error(`Request failed: ${error.message}`);
+      if (!response.headersSent) {
+        sendJson(response, error.statusCode || 500, {
+          error: error.statusCode ? error.message : "An unexpected server error occurred.",
+        });
+      } else {
+        response.destroy();
+      }
+    });
+  });
+}
+
+function vercelHandler(request, response) {
+  handleNodeRequest(request, response);
+}
+
+if (require.main === module && process.argv[2] === "create-admin") {
   createAdmin(process.argv[3] || "admin@ritorica.test").catch((error) => {
     console.error(`Could not create admin account: ${error.message}`);
     process.exitCode = 1;
   });
-} else {
+} else if (require.main === module) {
   const port = Number(process.env.PORT || 3000);
   const host = process.env.HOST || "127.0.0.1";
   const isLoopbackHost = ["localhost", "127.0.0.1", "::1"].includes(host.toLowerCase());
@@ -2243,54 +2410,7 @@ if (process.argv[2] === "create-admin") {
     process.exit(1);
   }
 
-  const server = http.createServer((request, response) => {
-    const url = new URL(request.url, "http://localhost");
-    const ip = requestIp(request).replace(/^::ffff:/, "");
-    const token = parseCookies(request.headers.cookie)[SESSION_COOKIE];
-    const session = sessions.get(token);
-    const context = {
-      method: request.method,
-      pathname: url.pathname,
-      module: auditModuleForPath(url.pathname),
-      action: auditActionForRequest(request, url.pathname),
-      startedAt: new Date().toISOString(),
-      ip,
-      device: auditDevice(request.headers["user-agent"] || ""),
-      actorEmail: session?.expiresAt > Date.now() ? session.email : "",
-      actorName: session?.expiresAt > Date.now() ? session.name || "" : "",
-      actorRole: session?.expiresAt > Date.now() ? session.role : "Unknown",
-      requestValue: null,
-      responseValue: null,
-      changes: [],
-    };
-    let auditRecorded = false;
-    const recordAudit = () => {
-      if (auditRecorded) return;
-      auditRecorded = true;
-      writeRequestAuditLog(context, response).catch((error) => {
-        console.error(`Could not write audit log: ${error.message}`);
-      });
-    };
-    response.on("finish", recordAudit);
-    response.on("close", () => {
-      if (!response.writableFinished) {
-        response.statusCode = 499;
-        recordAudit();
-      }
-    });
-    auditStorage.run(context, () => {
-      handleRequest(request, response).catch((error) => {
-        console.error(`Request failed: ${error.message}`);
-        if (!response.headersSent) {
-          sendJson(response, error.statusCode || 500, {
-            error: error.statusCode ? error.message : "An unexpected server error occurred.",
-          });
-        } else {
-          response.destroy();
-        }
-      });
-    });
-  });
+  const server = http.createServer(handleNodeRequest);
 
   server.listen(port, host, () => {
     console.log(`Ritorica CRM is running at http://${host}:${port}`);
@@ -2298,8 +2418,10 @@ if (process.argv[2] === "create-admin") {
 
   const cleanupTimer = setInterval(() => {
     const now = Date.now();
-    for (const [token, session] of sessions) {
-      if (session.expiresAt <= now) sessions.delete(token);
+    if (!database.isDatabaseConfigured()) {
+      for (const [token, session] of sessions) {
+        if (session.expiresAt <= now) sessions.delete(token);
+      }
     }
     for (const [ip, attempts] of loginAttempts) {
       if (attempts.resetAt <= now) loginAttempts.delete(ip);
@@ -2313,3 +2435,5 @@ if (process.argv[2] === "create-admin") {
   leadReminderTimer.unref();
   sendDueLeadReminders();
 }
+
+module.exports = { vercelHandler };
