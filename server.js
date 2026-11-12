@@ -1489,11 +1489,28 @@ async function handleProfileUpdate(request, response, session) {
 }
 
 async function handleEmployees(request, response, session, employeeId = "") {
-  if (!isAdmin(session)) return sendJson(response, 403, { error: "Admin access is required." });
+  if (request.method !== "GET" && !isAdmin(session)) {
+    return sendJson(response, 403, { error: "Admin access is required." });
+  }
   const [employees, teams] = await Promise.all([loadEmployees(), loadTeams()]);
 
   if (request.method === "GET") {
-    return sendJson(response, 200, { employees: employees.map((employee) => publicEmployee(employee, teams)) });
+    const isSuperAdmin = isAdmin(session);
+    const visibleEmployees = employees.map((employee) => {
+      if (isSuperAdmin) {
+        return publicEmployee(employee, teams);
+      }
+      return {
+        id: employee.id,
+        name: employee.name,
+        email: "",
+        designation: employee.designation || "Employee",
+        role: "",
+        teamIds: [],
+        teams: [],
+      };
+    });
+    return sendJson(response, 200, { employees: visibleEmployees });
   }
 
   if (request.method === "DELETE") {
@@ -1610,10 +1627,15 @@ async function handleEmployeePasswordReset(request, response, session, employeeI
 }
 
 async function handleTeams(request, response, session, teamId = "") {
-  if (!isAdmin(session)) return sendJson(response, 403, { error: "Admin access is required." });
+  if (request.method !== "GET" && !isAdmin(session)) {
+    return sendJson(response, 403, { error: "Admin access is required." });
+  }
   const [teams, employees] = await Promise.all([loadTeams(), loadEmployees()]);
 
   if (request.method === "GET") {
+    if (!isAdmin(session)) {
+      return sendJson(response, 200, { teams: [] });
+    }
     return sendJson(response, 200, {
       teams: teams.map((team) => ({
         ...team,

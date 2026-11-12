@@ -274,9 +274,9 @@ function showSignedIn(email, savedProfile, role = "Admin") {
   signedInRole = role;
   signedInEmail = email;
   document.querySelectorAll("[data-admin-only]").forEach((group) => {
-    group.hidden = false;
+    const restricted = !hasAdminAccess(role);
+    group.hidden = restricted;
     group.querySelectorAll(".nav-link").forEach((link) => {
-      const restricted = !hasAdminAccess(role);
       link.disabled = restricted;
       link.title = restricted ? "Available to administrators only" : "";
     });
@@ -536,7 +536,7 @@ async function loadAuditLogs() {
 }
 
 function setPage(pageKey) {
-  if (!hasAdminAccess(signedInRole) && ["employees", "audit"].includes(pageKey)) return;
+  if (!hasAdminAccess(signedInRole) && ["audit"].includes(pageKey)) return;
   const page = pages[pageKey];
   if (!page) return;
 
@@ -1919,53 +1919,81 @@ function renderTeamOptions(selectedIds = []) {
 function renderEmployeeList(employees) {
   employeeList.replaceChildren();
   employeeEmpty.hidden = employees.length > 0;
+  const isSuperAdmin = hasAdminAccess(signedInRole);
+
+  const table = employeeList.closest("table");
+  if (table) {
+    const thTeams = table.querySelector("th:nth-child(3)");
+    const thRole = table.querySelector("th:nth-child(4)");
+    const thActions = table.querySelector("th:nth-child(5)");
+    if (thTeams) thTeams.hidden = !isSuperAdmin;
+    if (thRole) thRole.hidden = !isSuperAdmin;
+    if (thActions) thActions.hidden = !isSuperAdmin;
+  }
+
+  const newEmployeeBtn = document.querySelector("#new-employee");
+  if (newEmployeeBtn) newEmployeeBtn.hidden = !isSuperAdmin;
+
+  const teamsPanel = document.querySelector(".teams-panel");
+  if (teamsPanel) teamsPanel.hidden = !isSuperAdmin;
+
   for (const employee of employees) {
     const row = document.createElement("tr");
     const identity = document.createElement("td");
     const name = document.createElement("strong");
     name.className = "employee-table__name";
     name.textContent = employee.name;
-    const email = document.createElement("span");
-    email.className = "employee-table__email";
-    email.textContent = employee.email;
-    identity.append(name, email);
+    identity.append(name);
+
+    if (isSuperAdmin && employee.email) {
+      const email = document.createElement("span");
+      email.className = "employee-table__email";
+      email.textContent = employee.email;
+      identity.append(email);
+    }
+
     row.append(identity);
     addCell(row, employee.designation || "Employee");
-    const memberships = document.createElement("td");
-    const badges = document.createElement("div");
-    badges.className = "team-badges";
-    for (const teamName of employee.teams) {
-      const badge = document.createElement("span");
-      badge.className = "team-badge";
-      badge.textContent = teamName;
-      badges.append(badge);
+
+    if (isSuperAdmin) {
+      const memberships = document.createElement("td");
+      const badges = document.createElement("div");
+      badges.className = "team-badges";
+      for (const teamName of employee.teams || []) {
+        const badge = document.createElement("span");
+        badge.className = "team-badge";
+        badge.textContent = teamName;
+        badges.append(badge);
+      }
+      memberships.append(badges);
+      row.append(memberships);
+      addCell(row, employee.role, "employee-role");
+
+      const actions = document.createElement("td");
+      actions.className = "management-actions";
+      const edit = document.createElement("button");
+      edit.className = "row-action";
+      edit.type = "button";
+      edit.dataset.action = "edit-employee";
+      edit.dataset.id = employee.id;
+      edit.textContent = "Edit";
+      const resetPassword = document.createElement("button");
+      resetPassword.className = "row-action";
+      resetPassword.type = "button";
+      resetPassword.dataset.action = "reset-employee-password";
+      resetPassword.dataset.id = employee.id;
+      resetPassword.textContent = "Reset password";
+      const remove = document.createElement("button");
+      remove.className = "row-action row-action--danger";
+      remove.type = "button";
+      remove.dataset.action = "delete-employee";
+      remove.dataset.id = employee.id;
+      remove.textContent = "Delete";
+      actions.append(edit, resetPassword);
+      if (employee.role !== "Super Admin") actions.append(remove);
+      row.append(actions);
     }
-    memberships.append(badges);
-    row.append(memberships);
-    addCell(row, employee.role, "employee-role");
-    const actions = document.createElement("td");
-    actions.className = "management-actions";
-    const edit = document.createElement("button");
-    edit.className = "row-action";
-    edit.type = "button";
-    edit.dataset.action = "edit-employee";
-    edit.dataset.id = employee.id;
-    edit.textContent = "Edit";
-    const resetPassword = document.createElement("button");
-    resetPassword.className = "row-action";
-    resetPassword.type = "button";
-    resetPassword.dataset.action = "reset-employee-password";
-    resetPassword.dataset.id = employee.id;
-    resetPassword.textContent = "Reset password";
-    const remove = document.createElement("button");
-    remove.className = "row-action row-action--danger";
-    remove.type = "button";
-    remove.dataset.action = "delete-employee";
-    remove.dataset.id = employee.id;
-    remove.textContent = "Delete";
-    actions.append(edit, resetPassword);
-    if (employee.role !== "Super Admin") actions.append(remove);
-    row.append(actions);
+
     employeeList.append(row);
   }
 }
