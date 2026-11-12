@@ -2441,4 +2441,5 @@ if (require.main === module && process.argv[2] === "create-admin") {
   sendDueLeadReminders();
 }
 
-module.exports = { vercelHandler };
+module.exports = vercelHandler;
+module.exports.vercelHandler = vercelHandler;
