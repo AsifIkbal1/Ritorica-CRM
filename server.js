@@ -7,6 +7,7 @@ const nodemailer = require("nodemailer");
 const database = require("./database");
 
 const ROOT = __dirname;
+const PUBLIC_DIRECTORY = path.join(ROOT, "public");
 const DATA_DIRECTORY = path.join(ROOT, "data");
 const USERS_FILE = path.join(DATA_DIRECTORY, "users.json");
 const EMPLOYEES_FILE = path.join(DATA_DIRECTORY, "employees.json");
@@ -1224,7 +1225,7 @@ async function serveStatic(pathname, response) {
   if (!file) return false;
 
   const [relativePath, contentType] = file;
-  const contents = await fs.readFile(path.join(ROOT, relativePath));
+  const contents = await fs.readFile(path.join(PUBLIC_DIRECTORY, relativePath));
   response.writeHead(200, {
     "Cache-Control": "no-store",
     "Content-Security-Policy":
