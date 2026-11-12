@@ -1130,7 +1130,11 @@ function sendJson(response, statusCode, payload, headers = {}) {
 }
 
 function requestIp(request) {
-  return request.socket.remoteAddress || "unknown";
+  const forwarded = request.headers?.["x-forwarded-for"];
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  return request.socket?.remoteAddress || request.connection?.remoteAddress || "unknown";
 }
 
 function parseCookies(header = "") {
