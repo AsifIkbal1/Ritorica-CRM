@@ -1440,6 +1440,35 @@ async function handleProfileUpdate(request, response, session) {
   const isAdminAccount = primaryAdmin?.email === session.email;
   account.designation = designation || (isAdmin(session) ? "Super Admin" : "Employee");
   account.photo = photo;
+
+  const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
+  const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
+
+  if (newPassword || currentPassword) {
+    if (!currentPassword) {
+      return sendJson(response, 400, { error: "Please enter your current password to set a new password." });
+    }
+    if (newPassword.length < 12 || newPassword.length > 128) {
+      return sendJson(response, 400, { error: "New password must be between 12 and 128 characters." });
+    }
+    const currentHash = await scryptAsync(
+      currentPassword,
+      Buffer.from(account.salt, "hex"),
+      64,
+      { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
+    );
+    const expectedHash = Buffer.from(account.hash, "hex");
+    const matches =
+      expectedHash.length === currentHash.length &&
+      crypto.timingSafeEqual(expectedHash, currentHash);
+    if (!matches) {
+      return sendJson(response, 400, { error: "Current password is incorrect." });
+    }
+    const updatedCredentials = await hashPassword(newPassword);
+    account.salt = updatedCredentials.salt;
+    account.hash = updatedCredentials.hash;
+  }
+
   const accountFile = isAdminAccount ? USERS_FILE : EMPLOYEES_FILE;
   if (isAdminAccount) {
     await writeJsonFile(accountFile, account);

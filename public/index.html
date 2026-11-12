@@ -1002,6 +1002,18 @@
           <input id="profile-designation" name="designation" type="text" maxlength="80">
         </div>
 
+        <hr style="margin: 18px 0; border: 0; border-top: 1px solid #e2e8f0;">
+        <h3 style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 10px;">Change Password (optional)</h3>
+
+        <div class="profile-field">
+          <label for="profile-current-password">Current password</label>
+          <input id="profile-current-password" name="currentPassword" type="password" autocomplete="current-password" placeholder="Enter current password">
+        </div>
+        <div class="profile-field">
+          <label for="profile-new-password">New password</label>
+          <input id="profile-new-password" name="newPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="At least 12 characters">
+        </div>
+
         <footer class="profile-dialog__footer">
           <button class="profile-save" id="profile-save" type="submit">Save profile</button>
         </footer>

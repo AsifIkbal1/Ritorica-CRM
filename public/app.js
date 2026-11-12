@@ -2293,6 +2293,8 @@ teamForm.addEventListener("submit", async (event) => {
 function openProfile() {
   profileForm.elements.name.value = profile.name;
   profileForm.elements.designation.value = profile.designation;
+  if (profileForm.elements.currentPassword) profileForm.elements.currentPassword.value = "";
+  if (profileForm.elements.newPassword) profileForm.elements.newPassword.value = "";
   selectedPhoto = profile.photo;
   profileMessage.textContent = "";
   profileDialog.showModal();
@@ -2353,6 +2355,8 @@ profileForm.addEventListener("submit", async (event) => {
         name: profileForm.elements.name.value,
         designation: profileForm.elements.designation.value,
         photo: selectedPhoto,
+        currentPassword: profileForm.elements.currentPassword?.value || "",
+        newPassword: profileForm.elements.newPassword?.value || "",
       }),
     });
     const result = await response.json();
