@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "create-admin": "node server.js create-admin",
-    "import-data": "node import-json-to-postgres.js"
+    "import-data": "node import-json-to-postgres.js",
+    "sync-balances": "node sync-balances-to-db.js",
+    "sync-balances:watch": "node sync-balances-to-db.js --watch"
   },
   "dependencies": {
     "nodemailer": "^10.5.0",

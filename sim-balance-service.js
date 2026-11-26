@@ -323,6 +323,15 @@ async function queryMnpspAnsProvider(config, simNumber) {
     }),
   });
   const text = await response.text();
+  if (response.status === 403) {
+    return {
+      ok: false,
+      connected: false,
+      apiConfigured: true,
+      apiResponseStatus: "HTTP_403_IP_BLOCKED",
+      errorMessage: `MNPSP (${mno}) blocked this server IP (HTTP 403). Sync from a whitelisted IP.`,
+    };
+  }
   let parsed = {};
   try {
     parsed = JSON.parse(text);

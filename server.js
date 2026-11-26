@@ -2227,11 +2227,32 @@ function syncSingleSimBalance(simNumber) {
     return simSyncInFlight.get(simNumber);
   }
   const job = (async () => {
+    if (process.env.SIM_BALANCE_SYNC_MODE === "external") {
+      const store = await loadSimBalanceStore();
+      return {
+        sim: simBalanceService.publicSimRecord(store.sims[simNumber]),
+        summary: simBalanceService.summarizeStore(store),
+      };
+    }
     const result = await simBalanceService.fetchLiveSimBalance(simNumber);
     const checkedAt = new Date().toISOString();
     const store = await enqueueSimStoreMutation((currentStore) => {
       const existing = currentStore.sims[simNumber];
       if (!existing) return currentStore;
+      // On serverless hosts (e.g. Vercel) without a whitelisted static IP, do not clobber
+      // a fresh live balance recently pushed to Postgres by a whitelisted sync worker.
+      const isIpBlockedOnVercel =
+        process.env.VERCEL === "1" &&
+        !result.ok &&
+        (result.apiResponseStatus === "HTTP_403_IP_BLOCKED" || result.apiResponseStatus === "MNPSP_9006");
+      const lastSuccessMs = existing.lastSuccessfulSync ? Date.parse(existing.lastSuccessfulSync) : 0;
+      const freshExternalSync =
+        existing.connectionStatus === "online" &&
+        Number.isFinite(lastSuccessMs) &&
+        Date.now() - lastSuccessMs <= 5 * 60 * 1000;
+      if (isIpBlockedOnVercel && freshExternalSync) {
+        return currentStore;
+      }
       currentStore.sims[simNumber] = simBalanceService.applySyncResult(existing, result, checkedAt);
       currentStore.lastSyncAt = checkedAt;
       return currentStore;
