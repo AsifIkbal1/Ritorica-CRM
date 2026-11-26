@@ -2648,6 +2648,13 @@ function createSimCardElement(sim) {
 
   addMetaRow("Last Updated", formatSyncTimestamp(sim.lastSuccessfulSync));
   addMetaRow("Last Checked", formatSyncTimestamp(sim.lastCheckedAt));
+  if (typeof sim.rawBalance === "number" && Number.isFinite(sim.rawBalance)) {
+    if (sim.balanceUnit === "sms") {
+      addMetaRow("SMS Credits", `${bdtFormatter.format(sim.rawBalance)} SMS`);
+    } else if (sim.balanceUnit === "paisa") {
+      addMetaRow("Raw Balance", `${Math.round(sim.rawBalance).toLocaleString()} paisa`);
+    }
+  }
   addMetaRow("API Status", sim.apiResponseStatus || "NOT_CONFIGURED");
   card.append(meta);
 

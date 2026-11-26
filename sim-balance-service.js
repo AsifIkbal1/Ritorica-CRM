@@ -90,6 +90,8 @@ function getProviderConfig(simNumber) {
     mno: (process.env[`${prefix}MNO`] || "").trim().toUpperCase() || undefined,
     balancePath: (process.env[`${prefix}BALANCE_PATH`] || "").trim() || undefined,
     scale: process.env[`${prefix}SCALE`] ? Number(process.env[`${prefix}SCALE`]) : undefined,
+    multiplier: process.env[`${prefix}MULTIPLIER`] ? Number(process.env[`${prefix}MULTIPLIER`]) : undefined,
+    unit: (process.env[`${prefix}UNIT`] || "").trim().toLowerCase() || undefined,
   };
 }
 
@@ -101,19 +103,27 @@ function readDotPath(obj, dotPath) {
   }, obj);
 }
 
-function parseNumericBalance(raw, scale = 1) {
+function parseRawNumeric(raw) {
   if (typeof raw === "number" && Number.isFinite(raw)) {
-    return Math.round((raw / scale) * 100) / 100;
+    return raw;
   }
   if (typeof raw === "string") {
     const cleaned = raw.replace(/[^\d.-]/g, "");
     if (!cleaned) return null;
     const numeric = Number(cleaned);
     if (Number.isFinite(numeric)) {
-      return Math.round((numeric / scale) * 100) / 100;
+      return numeric;
     }
   }
   return null;
+}
+
+function parseNumericBalance(raw, scale = 1, multiplier = 1) {
+  const numeric = parseRawNumeric(raw);
+  if (numeric === null) return null;
+  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  const safeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+  return Math.round(((numeric / safeScale) * safeMultiplier) * 100) / 100;
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = getTimeoutMs()) {
@@ -361,7 +371,9 @@ async function queryMnpspAnsProvider(config, simNumber) {
       };
     }
     const scale = Number.isFinite(config.scale) && config.scale > 0 ? config.scale : 1;
-    const balance = parseNumericBalance(parsed.availableBalance, scale);
+    const multiplier = Number.isFinite(config.multiplier) && config.multiplier > 0 ? config.multiplier : 1;
+    const rawBalance = parseRawNumeric(parsed.availableBalance);
+    const balance = parseNumericBalance(parsed.availableBalance, scale, multiplier);
     if (balance === null) {
       return {
         ok: false,
@@ -376,6 +388,8 @@ async function queryMnpspAnsProvider(config, simNumber) {
       connected: true,
       apiConfigured: true,
       balance,
+      rawBalance,
+      balanceUnit: config.unit || (scale === 100 ? "paisa" : "bdt"),
       apiResponseStatus: `MNPSP_${mno}_1000_OK`,
       errorMessage: "",
     };
@@ -739,6 +753,9 @@ function normalizeStore(rawStore) {
           ? (typeof saved.errorMessage === "string" ? saved.errorMessage : "")
           : "Balance API Not Connected",
         apiConfigured: configured,
+        rawBalance:
+          typeof saved.rawBalance === "number" && Number.isFinite(saved.rawBalance) ? saved.rawBalance : null,
+        balanceUnit: typeof saved.balanceUnit === "string" ? saved.balanceUnit : "bdt",
         history: Array.isArray(saved.history) ? saved.history.slice(0, MAX_HISTORY_PER_SIM) : [],
       };
     } else {
@@ -765,8 +782,16 @@ function applySyncResult(record, result, checkedAt) {
 
   if (result.ok && typeof result.balance === "number" && Number.isFinite(result.balance)) {
     const previousBalance = record.latestBalance;
-    next.previousBalance = previousBalance;
+    if (previousBalance !== result.balance) {
+      next.previousBalance = previousBalance;
+    }
     next.latestBalance = result.balance;
+    if (typeof result.rawBalance === "number" && Number.isFinite(result.rawBalance)) {
+      next.rawBalance = result.rawBalance;
+    }
+    if (typeof result.balanceUnit === "string" && result.balanceUnit) {
+      next.balanceUnit = result.balanceUnit;
+    }
     next.lastSuccessfulSync = checkedAt;
     next.connectionStatus = "online";
 
@@ -775,17 +800,28 @@ function applySyncResult(record, result, checkedAt) {
         ? Math.round((result.balance - previousBalance) * 100) / 100
         : null;
 
-    next.history.unshift({
-      id: crypto.randomUUID(),
-      syncedAt: checkedAt,
-      balance: result.balance,
-      previousBalance,
-      delta,
-      connectionStatus: "online",
-      apiResponseStatus: next.apiResponseStatus,
-      message: "Balance synchronized successfully.",
-    });
-    next.history = next.history.slice(0, MAX_HISTORY_PER_SIM);
+    const lastEntry = next.history[0];
+    const shouldRecordSuccess =
+      !lastEntry ||
+      lastEntry.connectionStatus !== "online" ||
+      lastEntry.balance !== result.balance;
+
+    if (shouldRecordSuccess) {
+      next.history.unshift({
+        id: crypto.randomUUID(),
+        syncedAt: checkedAt,
+        balance: result.balance,
+        previousBalance,
+        delta,
+        connectionStatus: "online",
+        apiResponseStatus: next.apiResponseStatus,
+        message:
+          delta && delta !== 0
+            ? `Balance changed (${delta > 0 ? "+" : ""}BDT ${delta.toFixed(2)}).`
+            : "Balance synchronized successfully.",
+      });
+      next.history = next.history.slice(0, MAX_HISTORY_PER_SIM);
+    }
   } else {
     // Preserve latestBalance and lastSuccessfulSync on failure.
     next.connectionStatus = "offline";
@@ -819,6 +855,8 @@ function publicSimRecord(record) {
     operator: record.operator,
     latestBalance: record.latestBalance,
     previousBalance: record.previousBalance,
+    rawBalance: typeof record.rawBalance === "number" ? record.rawBalance : null,
+    balanceUnit: record.balanceUnit || "bdt",
     lastSuccessfulSync: record.lastSuccessfulSync,
     lastCheckedAt: record.lastCheckedAt,
     connectionStatus: record.connectionStatus,
