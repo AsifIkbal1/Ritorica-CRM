@@ -2240,17 +2240,25 @@ function syncSingleSimBalance(simNumber) {
       const existing = currentStore.sims[simNumber];
       if (!existing) return currentStore;
       // On serverless hosts (e.g. Vercel) without a whitelisted static IP, do not clobber
-      // a fresh live balance recently pushed to Postgres by a whitelisted sync worker.
-      const isIpBlockedOnVercel =
+      // a fresh live status recently pushed to Postgres by a whitelisted sync worker.
+      const isVercelRestricted =
         process.env.VERCEL === "1" &&
         !result.ok &&
-        (result.apiResponseStatus === "HTTP_403_IP_BLOCKED" || result.apiResponseStatus === "MNPSP_9006");
+        (result.apiResponseStatus === "HTTP_403_IP_BLOCKED" ||
+          result.apiResponseStatus === "MNPSP_9006" ||
+          result.apiResponseStatus === "NOT_CONFIGURED");
       const lastSuccessMs = existing.lastSuccessfulSync ? Date.parse(existing.lastSuccessfulSync) : 0;
       const freshExternalSync =
         existing.connectionStatus === "online" &&
         Number.isFinite(lastSuccessMs) &&
         Date.now() - lastSuccessMs <= 5 * 60 * 1000;
-      if (isIpBlockedOnVercel && freshExternalSync) {
+      const lastCheckedMs = existing.lastCheckedAt ? Date.parse(existing.lastCheckedAt) : 0;
+      const freshExternalUnconfigured =
+        existing.apiResponseStatus === "NOT_CONFIGURED" &&
+        !existing.apiConfigured &&
+        Number.isFinite(lastCheckedMs) &&
+        Date.now() - lastCheckedMs <= 5 * 60 * 1000;
+      if (isVercelRestricted && (freshExternalSync || freshExternalUnconfigured)) {
         return currentStore;
       }
       currentStore.sims[simNumber] = simBalanceService.applySyncResult(existing, result, checkedAt);

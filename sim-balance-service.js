@@ -725,17 +725,30 @@ function normalizeStore(rawStore) {
     ? rawInterval
     : DEFAULT_SYNC_INTERVAL_SECONDS;
 
+  const isServerlessHost = process.env.VERCEL === "1";
   const sims = {};
   for (const simMeta of MONITORED_SIMS) {
     const saved = existingSims[simMeta.simNumber];
-    const configured = Boolean(getProviderConfig(simMeta.simNumber));
+    const localConfigured = Boolean(getProviderConfig(simMeta.simNumber));
     if (saved && typeof saved === "object") {
+      // On serverless hosts (e.g. Vercel), respect live records written by a whitelisted external sync worker.
+      const externallyOnline =
+        isServerlessHost &&
+        saved.apiConfigured === true &&
+        saved.connectionStatus === "online" &&
+        typeof saved.lastSuccessfulSync === "string" &&
+        Boolean(saved.lastSuccessfulSync);
+      const externallyUnconfigured =
+        isServerlessHost &&
+        saved.apiConfigured === false &&
+        saved.apiResponseStatus === "NOT_CONFIGURED";
+      const configured = externallyOnline ? true : externallyUnconfigured ? false : localConfigured;
       const latestBalance =
-        typeof saved.latestBalance === "number" && Number.isFinite(saved.latestBalance)
+        configured && typeof saved.latestBalance === "number" && Number.isFinite(saved.latestBalance)
           ? saved.latestBalance
           : null;
       const previousBalance =
-        typeof saved.previousBalance === "number" && Number.isFinite(saved.previousBalance)
+        configured && typeof saved.previousBalance === "number" && Number.isFinite(saved.previousBalance)
           ? saved.previousBalance
           : null;
       sims[simMeta.simNumber] = {
@@ -743,7 +756,7 @@ function normalizeStore(rawStore) {
         operator: simMeta.operator || detectOperator(simMeta.simNumber),
         latestBalance,
         previousBalance,
-        lastSuccessfulSync: typeof saved.lastSuccessfulSync === "string" ? saved.lastSuccessfulSync : null,
+        lastSuccessfulSync: configured && typeof saved.lastSuccessfulSync === "string" ? saved.lastSuccessfulSync : null,
         lastCheckedAt: typeof saved.lastCheckedAt === "string" ? saved.lastCheckedAt : null,
         connectionStatus: configured && saved.connectionStatus === "online" ? "online" : "offline",
         apiResponseStatus: configured
@@ -754,7 +767,7 @@ function normalizeStore(rawStore) {
           : "Balance API Not Connected",
         apiConfigured: configured,
         rawBalance:
-          typeof saved.rawBalance === "number" && Number.isFinite(saved.rawBalance) ? saved.rawBalance : null,
+          configured && typeof saved.rawBalance === "number" && Number.isFinite(saved.rawBalance) ? saved.rawBalance : null,
         balanceUnit: typeof saved.balanceUnit === "string" ? saved.balanceUnit : "bdt",
         history: Array.isArray(saved.history) ? saved.history.slice(0, MAX_HISTORY_PER_SIM) : [],
       };
@@ -823,8 +836,14 @@ function applySyncResult(record, result, checkedAt) {
       next.history = next.history.slice(0, MAX_HISTORY_PER_SIM);
     }
   } else {
-    // Preserve latestBalance and lastSuccessfulSync on failure.
     next.connectionStatus = "offline";
+    if (!result.apiConfigured) {
+      // Clear stale balance when a SIM's API credentials are removed or reassigned.
+      next.latestBalance = null;
+      next.previousBalance = null;
+      next.rawBalance = null;
+      next.lastSuccessfulSync = null;
+    }
     const lastEntry = next.history[0];
     const shouldRecordFailure =
       !lastEntry ||
@@ -835,8 +854,8 @@ function applySyncResult(record, result, checkedAt) {
       next.history.unshift({
         id: crypto.randomUUID(),
         syncedAt: checkedAt,
-        balance: record.latestBalance,
-        previousBalance: record.previousBalance,
+        balance: next.latestBalance,
+        previousBalance: next.previousBalance,
         delta: null,
         connectionStatus: "offline",
         apiResponseStatus: next.apiResponseStatus,
