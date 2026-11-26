@@ -1,10 +1,37 @@
 const crypto = require("node:crypto");
+const fsSync = require("node:fs");
 const fs = require("node:fs/promises");
 const http = require("node:http");
 const path = require("node:path");
 const { AsyncLocalStorage } = require("node:async_hooks");
+
+// Load local .env file if present (never overrides existing environment variables).
+try {
+  const envPath = path.join(__dirname, ".env");
+  if (fsSync.existsSync(envPath)) {
+    const lines = fsSync.readFileSync(envPath, "utf8").split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq <= 0) continue;
+      const key = line.slice(0, eq).trim();
+      let val = line.slice(eq + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      if (key && process.env[key] === undefined) {
+        process.env[key] = val;
+      }
+    }
+  }
+} catch {
+  // Ignore missing or unreadable .env
+}
+
 const nodemailer = require("nodemailer");
 const database = require("./database");
+const simBalanceService = require("./sim-balance-service");
 
 const ROOT = __dirname;
 const PUBLIC_DIRECTORY = path.join(ROOT, "public");
@@ -18,6 +45,7 @@ const LEADS_FILE = path.join(DATA_DIRECTORY, "leads.json");
 const NOTIFICATIONS_FILE = path.join(DATA_DIRECTORY, "notifications.json");
 const AUDIT_LOGS_FILE = path.join(DATA_DIRECTORY, "audit-logs.json");
 const UNDO_DELETIONS_FILE = path.join(DATA_DIRECTORY, "undo-deletions.json");
+const SIM_BALANCES_FILE = path.join(DATA_DIRECTORY, "sim-balances.json");
 const LEAD_TIME_ZONE = "Asia/Dhaka";
 const UNDO_RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_UNDO_ENTRIES_PER_USER = 20;
@@ -361,6 +389,7 @@ function auditModuleForFile(filePath) {
     "clients.json": "Clients",
     "leads.json": "Leads",
     "notifications.json": "Notifications",
+    "sim-balances.json": "Balance",
   })[name] || "System";
 }
 
@@ -663,6 +692,7 @@ function auditModuleForPath(pathname) {
   if (pathname.startsWith("/api/deals")) return "Deals";
   if (pathname.startsWith("/api/notifications")) return "Notifications";
   if (pathname === "/api/lead-dashboard") return "Dashboard";
+  if (pathname.startsWith("/api/sim-balances")) return "Balance";
   if (pathname.startsWith("/api/audit-logs")) return "Audit Logs";
   return "System";
 }
@@ -676,6 +706,8 @@ function auditActionForRequest(request, pathname) {
   if (segments.at(-1) === "reset-password") return "Reset password";
   if (segments.at(-1) === "convert") return "Convert lead";
   if (segments.at(-1) === "read") return "Mark notification read";
+  if (pathname.startsWith("/api/sim-balances") && segments.at(-1) === "sync") return "Sync SIM balance";
+  if (pathname === "/api/sim-balances/settings") return "Update balance sync settings";
   if (request.method === "GET") return "View";
   if (request.method === "POST") return `Create ${resource.replace(/s$/, "")}`;
   if (request.method === "PUT" || request.method === "PATCH") return `Update ${resource.replace(/s$/, "")}`;
@@ -2162,6 +2194,116 @@ async function handleUndoDeletion(request, response, session) {
   return sendJson(response, 200, { ok: true, undone: publicUndoEntry(entry) });
 }
 
+const simSyncInFlight = new Map();
+let simStoreQueue = Promise.resolve();
+
+async function loadSimBalanceStore() {
+  try {
+    const raw = await readJsonFile(SIM_BALANCES_FILE);
+    return simBalanceService.normalizeStore(raw);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      const initial = simBalanceService.normalizeStore(null);
+      await writeJsonFile(SIM_BALANCES_FILE, initial);
+      return initial;
+    }
+    throw error;
+  }
+}
+
+function enqueueSimStoreMutation(mutator) {
+  const task = simStoreQueue.catch(() => {}).then(async () => {
+    const store = await loadSimBalanceStore();
+    const updated = await mutator(store);
+    await writeJsonFile(SIM_BALANCES_FILE, updated);
+    return updated;
+  });
+  simStoreQueue = task.catch(() => {});
+  return task;
+}
+
+function syncSingleSimBalance(simNumber) {
+  if (simSyncInFlight.has(simNumber)) {
+    return simSyncInFlight.get(simNumber);
+  }
+  const job = (async () => {
+    const result = await simBalanceService.fetchLiveSimBalance(simNumber);
+    const checkedAt = new Date().toISOString();
+    const store = await enqueueSimStoreMutation((currentStore) => {
+      const existing = currentStore.sims[simNumber];
+      if (!existing) return currentStore;
+      currentStore.sims[simNumber] = simBalanceService.applySyncResult(existing, result, checkedAt);
+      currentStore.lastSyncAt = checkedAt;
+      return currentStore;
+    });
+    return {
+      sim: simBalanceService.publicSimRecord(store.sims[simNumber]),
+      summary: simBalanceService.summarizeStore(store),
+    };
+  })().finally(() => {
+    simSyncInFlight.delete(simNumber);
+  });
+  simSyncInFlight.set(simNumber, job);
+  return job;
+}
+
+async function handleSimBalances(request, response, session, simNumber = "", action = "") {
+  if (!isAdmin(session)) {
+    return sendJson(response, 403, { error: "Administrator access is required for SIM Balance Monitoring." });
+  }
+
+  if (simNumber) {
+    const isKnownSim = simBalanceService.MONITORED_SIMS.some((item) => item.simNumber === simNumber);
+    if (!isKnownSim) {
+      return sendJson(response, 404, { error: "Monitored SIM number not found." });
+    }
+  }
+
+  if (!simNumber && !action && request.method === "GET") {
+    const store = await loadSimBalanceStore();
+    return sendJson(response, 200, simBalanceService.summarizeStore(store));
+  }
+
+  if (!simNumber && action === "settings" && request.method === "PUT") {
+    const body = await readJsonBody(request);
+    const interval = Number(body.syncIntervalSeconds);
+    if (!simBalanceService.ALLOWED_SYNC_INTERVALS.includes(interval)) {
+      return sendJson(response, 400, {
+        error: `Sync interval must be one of: ${simBalanceService.ALLOWED_SYNC_INTERVALS.join(", ")} seconds.`,
+      });
+    }
+    const store = await enqueueSimStoreMutation((currentStore) => {
+      currentStore.config.syncIntervalSeconds = interval;
+      return currentStore;
+    });
+    return sendJson(response, 200, simBalanceService.summarizeStore(store));
+  }
+
+  if (!simNumber && action === "sync" && request.method === "POST") {
+    await Promise.allSettled(
+      simBalanceService.MONITORED_SIMS.map((item) => syncSingleSimBalance(item.simNumber)),
+    );
+    const store = await loadSimBalanceStore();
+    return sendJson(response, 200, simBalanceService.summarizeStore(store));
+  }
+
+  if (simNumber && action === "sync" && request.method === "POST") {
+    const synced = await syncSingleSimBalance(simNumber);
+    return sendJson(response, 200, synced);
+  }
+
+  if (simNumber && action === "history" && request.method === "GET") {
+    const store = await loadSimBalanceStore();
+    const record = store.sims[simNumber];
+    return sendJson(response, 200, {
+      sim: simBalanceService.publicSimRecord(record),
+      history: record.history || [],
+    });
+  }
+
+  return sendJson(response, 405, { error: "Method not allowed." });
+}
+
 async function handleRequest(request, response) {
   const url = new URL(request.url, "http://localhost");
   if (request.method === "GET" && (await serveStatic(url.pathname, response))) return;
@@ -2308,6 +2450,7 @@ async function handleRequest(request, response) {
       "Leads",
       "Profile",
       "Notifications",
+      "Balance",
       "Audit Logs",
     ];
     if (
@@ -2320,7 +2463,7 @@ async function handleRequest(request, response) {
     }
     if (
       !isAdmin(session) &&
-      ["Employees", "Teams", "Audit Logs"].includes(body.module)
+      ["Employees", "Teams", "Balance", "Audit Logs"].includes(body.module)
     ) {
       return sendJson(response, 403, { error: "This workspace activity is not available to your role." });
     }
@@ -2333,6 +2476,38 @@ async function handleRequest(request, response) {
     auditContext.eventPreviousValue = safeAuditValue(body.previousValue);
     auditContext.eventNewValue = safeAuditValue(body.newValue);
     return sendJson(response, 201, { ok: true });
+  }
+
+  if (url.pathname === "/api/sim-balances" && request.method === "GET") {
+    const session = await getSession(request);
+    if (!session) return sendJson(response, 401, { error: "Not signed in." });
+    return handleSimBalances(request, response, session);
+  }
+
+  if (url.pathname === "/api/sim-balances/sync" && request.method === "POST") {
+    const session = await getSession(request);
+    if (!session) return sendJson(response, 401, { error: "Not signed in." });
+    return handleSimBalances(request, response, session, "", "sync");
+  }
+
+  if (url.pathname === "/api/sim-balances/settings" && request.method === "PUT") {
+    const session = await getSession(request);
+    if (!session) return sendJson(response, 401, { error: "Not signed in." });
+    return handleSimBalances(request, response, session, "", "settings");
+  }
+
+  const simBalanceSyncMatch = /^\/api\/sim-balances\/([^/]+)\/sync$/.exec(url.pathname);
+  if (simBalanceSyncMatch && request.method === "POST") {
+    const session = await getSession(request);
+    if (!session) return sendJson(response, 401, { error: "Not signed in." });
+    return handleSimBalances(request, response, session, decodeURIComponent(simBalanceSyncMatch[1]), "sync");
+  }
+
+  const simBalanceHistoryMatch = /^\/api\/sim-balances\/([^/]+)\/history$/.exec(url.pathname);
+  if (simBalanceHistoryMatch && request.method === "GET") {
+    const session = await getSession(request);
+    if (!session) return sendJson(response, 401, { error: "Not signed in." });
+    return handleSimBalances(request, response, session, decodeURIComponent(simBalanceHistoryMatch[1]), "history");
   }
 
   if (url.pathname === "/api/notifications" && request.method === "GET") {

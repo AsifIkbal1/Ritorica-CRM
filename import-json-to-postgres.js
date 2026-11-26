@@ -13,6 +13,7 @@ const dataFiles = [
   "notifications.json",
   "audit-logs.json",
   "undo-deletions.json",
+  "sim-balances.json",
 ];
 
 async function importData() {

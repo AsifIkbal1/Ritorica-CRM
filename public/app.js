@@ -45,6 +45,27 @@ const auditStatusFilter = document.querySelector("#audit-status-filter");
 const auditPrevious = document.querySelector("#audit-previous");
 const auditNext = document.querySelector("#audit-next");
 const auditPageStatus = document.querySelector("#audit-page-status");
+const balanceDashboard = document.querySelector("#balance-dashboard");
+const balanceTotalAmount = document.querySelector("#balance-total-amount");
+const balanceTotalNote = document.querySelector("#balance-total-note");
+const balanceConnectedCount = document.querySelector("#balance-connected-count");
+const balanceDisconnectedCount = document.querySelector("#balance-disconnected-count");
+const balanceLastSync = document.querySelector("#balance-last-sync");
+const balanceSyncStatusNote = document.querySelector("#balance-sync-status-note");
+const balanceLivePill = document.querySelector("#balance-live-pill");
+const balanceLivePillText = document.querySelector("#balance-live-pill-text");
+const balanceMessage = document.querySelector("#balance-message");
+const balanceIntervalSelect = document.querySelector("#balance-interval-select");
+const balanceRefreshAllButton = document.querySelector("#balance-refresh-all");
+const balanceRefreshAllLabel = document.querySelector("#balance-refresh-all-label");
+const balanceCardsGrid = document.querySelector("#balance-cards-grid");
+const balanceHistoryDialog = document.querySelector("#balance-history-dialog");
+const balanceHistoryTitle = document.querySelector("#balance-history-title");
+const balanceHistorySubtitle = document.querySelector("#balance-history-subtitle");
+const balanceHistoryClose = document.querySelector("#balance-history-close");
+const balanceHistoryMessage = document.querySelector("#balance-history-message");
+const balanceHistoryList = document.querySelector("#balance-history-list");
+const balanceHistoryEmpty = document.querySelector("#balance-history-empty");
 const sectionHeading = document.querySelector("#section-heading");
 const sectionIcon = document.querySelector("#section-icon");
 const profileDialog = document.querySelector("#profile-dialog");
@@ -219,6 +240,11 @@ const pages = {
   clients: { title: "Clients", description: "Manage your client relationships.", icon: "◎" },
   sales: { title: "Sales & Deals", description: "Track your sales opportunities.", icon: "◇" },
   employees: { title: "Employees & Teams", description: "Manage your team and employees.", icon: "♧" },
+  balance: {
+    title: "SIM Balance Monitoring",
+    description: "Live balance tracking and synchronization across all six SIM cards.",
+    icon: "৳",
+  },
   audit: { title: "Audit Logs", description: "Review activity across your workspace.", icon: "≡" },
   profile: { title: "My profile", description: "Your account and profile settings.", icon: "◉" },
 };
@@ -401,6 +427,7 @@ document.querySelector("#sign-out").addEventListener("click", async () => {
       formMessage.textContent = "Could not sign out. Please try again.";
       return;
     }
+    stopBalanceAutoSync();
     appShell.hidden = true;
     loginView.hidden = false;
     availableUndo = null;
@@ -536,7 +563,7 @@ async function loadAuditLogs() {
 }
 
 function setPage(pageKey) {
-  if (!hasAdminAccess(signedInRole) && ["audit"].includes(pageKey)) return;
+  if (!hasAdminAccess(signedInRole) && ["audit", "balance"].includes(pageKey)) return;
   const page = pages[pageKey];
   if (!page) return;
 
@@ -548,6 +575,7 @@ function setPage(pageKey) {
   const isClientsDashboard = pageKey === "clients";
   const isLeadsDashboard = pageKey === "leads";
   const isAuditDashboard = pageKey === "audit";
+  const isBalanceDashboard = pageKey === "balance";
   const previousPageKey = currentPageKey;
   currentPageKey = pageKey;
   const moduleByPage = {
@@ -556,6 +584,7 @@ function setPage(pageKey) {
     clients: "Clients",
     sales: "Sales",
     employees: "Employees",
+    balance: "Balance",
     audit: "Audit Logs",
     profile: "Profile",
   };
@@ -574,8 +603,15 @@ function setPage(pageKey) {
   clientsDashboard.hidden = !isClientsDashboard;
   leadsDashboard.hidden = !isLeadsDashboard;
   auditDashboard.hidden = !isAuditDashboard;
+  balanceDashboard.hidden = !isBalanceDashboard;
   sectionPlaceholder.hidden =
-    isDashboard || isEmployeeManagement || isSalesDashboard || isClientsDashboard || isLeadsDashboard || isAuditDashboard;
+    isDashboard ||
+    isEmployeeManagement ||
+    isSalesDashboard ||
+    isClientsDashboard ||
+    isLeadsDashboard ||
+    isAuditDashboard ||
+    isBalanceDashboard;
   sectionHeading.textContent = page.title;
   sectionIcon.textContent = page.icon;
   if (isEmployeeManagement) loadEmployeeManagement();
@@ -584,6 +620,11 @@ function setPage(pageKey) {
   if (isLeadsDashboard) loadLeads();
   if (isAuditDashboard) activity.then(loadAuditLogs);
   if (isDashboard) loadLeadDashboard();
+  if (isBalanceDashboard) {
+    openBalanceMonitoring();
+  } else {
+    stopBalanceAutoSync();
+  }
 
   document.querySelectorAll(".sidebar-nav [data-page], .profile-link").forEach((link) => {
     const active = link.dataset.page === pageKey;
@@ -2399,6 +2440,447 @@ profileForm.addEventListener("submit", async (event) => {
   } finally {
     profileSave.disabled = false;
   }
+});
+
+/* ===== Live SIM Balance Monitoring ===== */
+const bdtFormatter = new Intl.NumberFormat("en-BD", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+let balanceSummaryState = null;
+let balanceAutoSyncTimer = 0;
+let balanceRefreshAllInFlight = false;
+const simSyncInFlight = new Set();
+
+function formatBdtAmount(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return `৳${bdtFormatter.format(value)}`;
+}
+
+function formatSyncTimestamp(isoString) {
+  if (!isoString) return "Never";
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "Never";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatSyncIntervalLabel(seconds) {
+  if (!seconds) return "Auto-sync: Manual only";
+  if (seconds < 60) return `Auto-sync interval: ${seconds}s`;
+  return `Auto-sync interval: ${Math.round(seconds / 60)} min`;
+}
+
+function stopBalanceAutoSync() {
+  if (balanceAutoSyncTimer) {
+    window.clearInterval(balanceAutoSyncTimer);
+    balanceAutoSyncTimer = 0;
+  }
+}
+
+function scheduleBalanceAutoSync(intervalSeconds) {
+  stopBalanceAutoSync();
+  if (currentPageKey !== "balance" || appShell.hidden) return;
+  if (!intervalSeconds || intervalSeconds <= 0) return;
+  balanceAutoSyncTimer = window.setInterval(() => {
+    if (currentPageKey !== "balance" || appShell.hidden || document.hidden) return;
+    if (balanceRefreshAllInFlight || simSyncInFlight.size > 0) return;
+    syncAllSimBalances({ isAuto: true });
+  }, intervalSeconds * 1000);
+}
+
+function renderBalanceSummary() {
+  if (!balanceSummaryState) return;
+  const state = balanceSummaryState;
+  const anySyncing = balanceRefreshAllInFlight || simSyncInFlight.size > 0;
+
+  balanceTotalAmount.textContent = formatBdtAmount(state.totalBalance);
+  balanceTotalNote.textContent = state.simsWithBalance > 0
+    ? `${state.simsWithBalance} of ${state.totalSims} SIMs reporting live balance`
+    : `0 of ${state.totalSims} SIMs reporting balance`;
+
+  balanceConnectedCount.textContent = String(state.connectedCount);
+  balanceDisconnectedCount.textContent = String(state.disconnectedCount);
+  balanceLastSync.textContent = formatSyncTimestamp(state.lastSyncAt);
+  balanceSyncStatusNote.textContent = formatSyncIntervalLabel(state.syncIntervalSeconds);
+
+  if (balanceIntervalSelect && String(state.syncIntervalSeconds) !== balanceIntervalSelect.value) {
+    balanceIntervalSelect.value = String(state.syncIntervalSeconds);
+  }
+
+  balanceLivePill.classList.remove("is-online", "is-offline", "is-syncing");
+  if (anySyncing) {
+    balanceLivePill.classList.add("is-syncing");
+    balanceLivePillText.textContent = `Synchronizing ${simSyncInFlight.size || state.totalSims} SIM(s)…`;
+  } else if (state.connectedCount > 0) {
+    balanceLivePill.classList.add("is-online");
+    balanceLivePillText.textContent = `${state.connectedCount}/${state.totalSims} SIMs Online`;
+  } else if (state.configuredCount === 0) {
+    balanceLivePill.classList.add("is-offline");
+    balanceLivePillText.textContent = "Balance API Not Connected";
+  } else {
+    balanceLivePill.classList.add("is-offline");
+    balanceLivePillText.textContent = "All SIMs Disconnected";
+  }
+
+  balanceRefreshAllButton.disabled = balanceRefreshAllInFlight;
+  balanceRefreshAllButton.classList.toggle("is-spinning", balanceRefreshAllInFlight);
+  balanceRefreshAllLabel.textContent = balanceRefreshAllInFlight ? "Refreshing…" : "Refresh All";
+}
+
+function createSimCardElement(sim) {
+  const isSyncing = simSyncInFlight.has(sim.simNumber);
+  const isOnline = sim.connectionStatus === "online";
+  const operatorSlug = String(sim.operator || "unknown").toLowerCase().replace(/[^a-z]/g, "");
+
+  const card = document.createElement("article");
+  card.className = `sim-card ${
+    isSyncing ? "sim-card--loading" : isOnline ? "sim-card--online" : "sim-card--offline"
+  }`;
+  card.dataset.simNumber = sim.simNumber;
+
+  const header = document.createElement("header");
+  header.className = "sim-card__header";
+
+  const identity = document.createElement("div");
+  identity.className = "sim-card__identity";
+
+  const numberEl = document.createElement("strong");
+  numberEl.className = "sim-card__number";
+  numberEl.textContent = sim.simNumber;
+
+  const operatorEl = document.createElement("span");
+  operatorEl.className = `sim-card__operator sim-card__operator--${operatorSlug}`;
+  operatorEl.textContent = sim.operator || "Unknown";
+
+  identity.append(numberEl, operatorEl);
+
+  const statusBadge = document.createElement("span");
+  statusBadge.className = `sim-status-badge ${
+    isSyncing
+      ? "sim-status-badge--syncing"
+      : isOnline
+        ? "sim-status-badge--online"
+        : "sim-status-badge--offline"
+  }`;
+  const statusDot = document.createElement("span");
+  statusDot.className = "sim-status-badge__dot";
+  statusDot.setAttribute("aria-hidden", "true");
+  const statusText = document.createElement("span");
+  statusText.textContent = isSyncing ? "Syncing…" : isOnline ? "Online" : "Offline";
+  statusBadge.append(statusDot, statusText);
+
+  header.append(identity, statusBadge);
+  card.append(header);
+
+  const balanceBox = document.createElement("div");
+  balanceBox.className = "sim-card__balance-box";
+
+  const balanceLabel = document.createElement("span");
+  balanceLabel.className = "sim-card__balance-label";
+  balanceLabel.textContent = "Current Balance (BDT)";
+  balanceBox.append(balanceLabel);
+
+  if (isSyncing) {
+    const skeleton = document.createElement("div");
+    skeleton.className = "sim-card__skeleton";
+    skeleton.setAttribute("aria-label", `Loading balance for ${sim.simNumber}`);
+    const barLg = document.createElement("div");
+    barLg.className = "sim-skeleton-bar sim-skeleton-bar--lg";
+    const barSm = document.createElement("div");
+    barSm.className = "sim-skeleton-bar sim-skeleton-bar--sm";
+    skeleton.append(barLg, barSm);
+    balanceBox.append(skeleton);
+  } else {
+    const balanceVal = document.createElement("strong");
+    const hasRealBalance = typeof sim.latestBalance === "number" && Number.isFinite(sim.latestBalance);
+    balanceVal.className = `sim-card__balance-value${hasRealBalance ? "" : " sim-card__balance-value--empty"}`;
+    balanceVal.textContent = hasRealBalance ? formatBdtAmount(sim.latestBalance) : "—";
+    balanceBox.append(balanceVal);
+
+    const sub = document.createElement("div");
+    sub.className = "sim-card__balance-sub";
+    if (typeof sim.previousBalance === "number" && Number.isFinite(sim.previousBalance)) {
+      const prevSpan = document.createElement("span");
+      prevSpan.textContent = `Previous: ${formatBdtAmount(sim.previousBalance)}`;
+      sub.append(prevSpan);
+      if (hasRealBalance) {
+        const diff = Math.round((sim.latestBalance - sim.previousBalance) * 100) / 100;
+        if (diff !== 0) {
+          const delta = document.createElement("span");
+          delta.className = `sim-card__delta ${diff > 0 ? "sim-card__delta--up" : "sim-card__delta--down"}`;
+          delta.textContent = `${diff > 0 ? "+" : "-"}${formatBdtAmount(Math.abs(diff))}`;
+          sub.append(delta);
+        }
+      }
+    } else {
+      const noteSpan = document.createElement("span");
+      noteSpan.textContent = hasRealBalance
+        ? "Latest verified balance"
+        : sim.apiConfigured
+          ? "Awaiting live operator response"
+          : "Balance API Not Connected";
+      sub.append(noteSpan);
+    }
+    balanceBox.append(sub);
+  }
+  card.append(balanceBox);
+
+  const meta = document.createElement("div");
+  meta.className = "sim-card__meta";
+
+  const addMetaRow = (label, value) => {
+    const row = document.createElement("div");
+    row.className = "sim-card__meta-row";
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = label;
+    const valueStrong = document.createElement("strong");
+    valueStrong.textContent = value;
+    row.append(labelSpan, valueStrong);
+    meta.append(row);
+  };
+
+  addMetaRow("Last Updated", formatSyncTimestamp(sim.lastSuccessfulSync));
+  addMetaRow("Last Checked", formatSyncTimestamp(sim.lastCheckedAt));
+  addMetaRow("API Status", sim.apiResponseStatus || "NOT_CONFIGURED");
+  card.append(meta);
+
+  if (!isSyncing && sim.errorMessage) {
+    const errorEl = document.createElement("p");
+    errorEl.className = `sim-card__error${sim.apiConfigured ? "" : " sim-card__error--unconfigured"}`;
+    errorEl.textContent = sim.errorMessage;
+    card.append(errorEl);
+  }
+
+  const footer = document.createElement("footer");
+  footer.className = "sim-card__footer";
+
+  const refreshBtn = document.createElement("button");
+  refreshBtn.type = "button";
+  refreshBtn.className = "sim-card__btn sim-card__btn--primary";
+  refreshBtn.dataset.action = "sync-sim";
+  refreshBtn.dataset.sim = sim.simNumber;
+  refreshBtn.disabled = isSyncing;
+  refreshBtn.textContent = isSyncing ? "Syncing…" : "Refresh";
+
+  const historyBtn = document.createElement("button");
+  historyBtn.type = "button";
+  historyBtn.className = "sim-card__btn";
+  historyBtn.dataset.action = "history-sim";
+  historyBtn.dataset.sim = sim.simNumber;
+  historyBtn.textContent = `History (${sim.historyCount || 0})`;
+
+  footer.append(refreshBtn, historyBtn);
+  card.append(footer);
+
+  return card;
+}
+
+function renderBalanceCards() {
+  if (!balanceSummaryState || !Array.isArray(balanceSummaryState.sims)) return;
+  balanceCardsGrid.replaceChildren(
+    ...balanceSummaryState.sims.map((sim) => createSimCardElement(sim)),
+  );
+  renderBalanceSummary();
+}
+
+function updateSingleSimCard(simNumber) {
+  if (!balanceSummaryState) return;
+  const sim = balanceSummaryState.sims.find((item) => item.simNumber === simNumber);
+  if (!sim) return;
+  const existing = balanceCardsGrid.querySelector(`[data-sim-number="${simNumber}"]`);
+  const nextCard = createSimCardElement(sim);
+  if (existing) {
+    existing.replaceWith(nextCard);
+  } else {
+    balanceCardsGrid.append(nextCard);
+  }
+  renderBalanceSummary();
+}
+
+async function loadSimBalances() {
+  balanceMessage.textContent = "";
+  try {
+    const response = await fetch("/api/sim-balances", { credentials: "same-origin" });
+    const result = await response.json();
+    if (!response.ok) {
+      balanceMessage.textContent = result.error || "Could not load SIM balances.";
+      return null;
+    }
+    balanceSummaryState = result;
+    renderBalanceCards();
+    scheduleBalanceAutoSync(result.syncIntervalSeconds);
+    return result;
+  } catch {
+    balanceMessage.textContent = "Could not connect to the server to load SIM balances.";
+    return null;
+  }
+}
+
+async function syncSingleSim(simNumber, { silent = false } = {}) {
+  if (simSyncInFlight.has(simNumber)) return;
+  simSyncInFlight.add(simNumber);
+  updateSingleSimCard(simNumber);
+  if (!silent) balanceMessage.textContent = "";
+
+  try {
+    const response = await fetch(`/api/sim-balances/${encodeURIComponent(simNumber)}/sync`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      if (!silent) {
+        balanceMessage.textContent = result.error || `Failed to refresh SIM ${simNumber}.`;
+      }
+      return;
+    }
+    if (result.summary) {
+      balanceSummaryState = result.summary;
+    }
+  } catch {
+    if (!silent) {
+      balanceMessage.textContent = `Connection error while refreshing SIM ${simNumber}.`;
+    }
+  } finally {
+    simSyncInFlight.delete(simNumber);
+    updateSingleSimCard(simNumber);
+  }
+}
+
+async function syncAllSimBalances({ isAuto = false } = {}) {
+  if (balanceRefreshAllInFlight) return;
+  if (!balanceSummaryState) {
+    const loaded = await loadSimBalances();
+    if (!loaded) return;
+  }
+
+  balanceRefreshAllInFlight = true;
+  if (!isAuto) balanceMessage.textContent = "";
+  renderBalanceSummary();
+
+  try {
+    const simNumbers = balanceSummaryState.sims.map((sim) => sim.simNumber);
+    await Promise.allSettled(
+      simNumbers.map((simNumber) => syncSingleSim(simNumber, { silent: true })),
+    );
+  } finally {
+    balanceRefreshAllInFlight = false;
+    renderBalanceCards();
+  }
+}
+
+async function openBalanceMonitoring() {
+  const state = await loadSimBalances();
+  if (!state) return;
+  // Trigger a live check if none of the SIMs have ever been checked yet.
+  const hasNeverChecked = state.sims.every((sim) => !sim.lastCheckedAt);
+  if (hasNeverChecked) {
+    syncAllSimBalances({ isAuto: true });
+  }
+}
+
+async function openSimBalanceHistory(simNumber) {
+  balanceHistoryTitle.textContent = `Balance History · ${simNumber}`;
+  balanceHistorySubtitle.textContent = "Loading recorded sync events…";
+  balanceHistoryMessage.textContent = "";
+  balanceHistoryList.replaceChildren();
+  balanceHistoryEmpty.hidden = true;
+  balanceHistoryDialog.showModal();
+
+  try {
+    const response = await fetch(`/api/sim-balances/${encodeURIComponent(simNumber)}/history`, {
+      credentials: "same-origin",
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      balanceHistoryMessage.textContent = result.error || "Could not load SIM history.";
+      return;
+    }
+    const sim = result.sim;
+    balanceHistorySubtitle.textContent = `${sim.operator} · Latest: ${formatBdtAmount(sim.latestBalance)} · Status: ${sim.connectionStatus === "online" ? "Online" : "Offline"}`;
+
+    const history = Array.isArray(result.history) ? result.history : [];
+    balanceHistoryEmpty.hidden = history.length > 0;
+    for (const entry of history) {
+      const item = document.createElement("li");
+      item.className = "balance-history-item";
+
+      const top = document.createElement("div");
+      top.className = "balance-history-item__top";
+      const amount = document.createElement("strong");
+      amount.className = "balance-history-item__amount";
+      amount.textContent = formatBdtAmount(entry.balance);
+      const time = document.createElement("span");
+      time.className = "balance-history-item__time";
+      time.textContent = formatSyncTimestamp(entry.syncedAt);
+      top.append(amount, time);
+
+      const details = document.createElement("div");
+      details.className = "balance-history-item__details";
+      const msg = document.createElement("span");
+      msg.textContent = entry.message || (entry.connectionStatus === "online" ? "Synced" : "Offline");
+      const code = document.createElement("span");
+      code.className = "balance-history-item__code";
+      code.textContent = entry.apiResponseStatus || "UNKNOWN";
+      details.append(msg, code);
+
+      item.append(top, details);
+      balanceHistoryList.append(item);
+    }
+  } catch {
+    balanceHistoryMessage.textContent = "Could not connect to the server.";
+  }
+}
+
+balanceRefreshAllButton?.addEventListener("click", () => {
+  syncAllSimBalances({ isAuto: false });
+});
+
+balanceIntervalSelect?.addEventListener("change", async () => {
+  const intervalSeconds = Number(balanceIntervalSelect.value);
+  balanceMessage.textContent = "";
+  try {
+    const response = await fetch("/api/sim-balances/settings", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ syncIntervalSeconds: intervalSeconds }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      balanceMessage.textContent = result.error || "Could not update sync interval.";
+      return;
+    }
+    balanceSummaryState = result;
+    renderBalanceSummary();
+    scheduleBalanceAutoSync(result.syncIntervalSeconds);
+  } catch {
+    balanceMessage.textContent = "Could not save auto-sync interval.";
+  }
+});
+
+balanceCardsGrid?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const simNumber = button.dataset.sim;
+  if (!simNumber) return;
+  if (button.dataset.action === "sync-sim") {
+    syncSingleSim(simNumber, { silent: false });
+  } else if (button.dataset.action === "history-sim") {
+    openSimBalanceHistory(simNumber);
+  }
+});
+
+balanceHistoryClose?.addEventListener("click", () => balanceHistoryDialog.close());
+balanceHistoryDialog?.addEventListener("click", (event) => {
+  if (event.target === balanceHistoryDialog) balanceHistoryDialog.close();
 });
 
 checkExistingSession();
